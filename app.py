@@ -345,6 +345,24 @@ quote_row = df_quote.loc[chosen_idx]
 
 st.markdown("### Add Measurement for Selected Line")
 
+# Extract jamb thickness properly from strings like "US14 92x18 Undershot"
+def extract_jamb_thickness_full(jamb_str):
+    """
+    Extracts the jamb thickness from a jamb description.
+    Examples:
+        "US14 92x18 Undershot" -> 18
+        "26A 30x10 Door Stop" -> 10
+    """
+    parts = str(jamb_str).split()
+    for p in parts:
+        if "x" in p:  # looks like size descriptor
+            dims = p.split("x")
+            try:
+                return float(dims[-1])
+            except:
+                continue
+    return 0  # fallback safety
+
 with st.form("add_measurement_form", clear_on_submit=True):
 
     undercut = st.number_input("Undercut (mm)", min_value=0, value=10)
@@ -355,13 +373,12 @@ with st.form("add_measurement_form", clear_on_submit=True):
 
     if submitted:
 
-        # Build row for production data
         new_row = {
             "QuoteLine": chosen_idx,
             "LeafType": quote_row["Leaf"],
             "LeafHeight": quote_row["Height"],
             "Width": quote_row["Width"],
-            "JambThickness": float(str(quote_row["Jamb Type"]).split()[-1]),  # assumes "US14 92x18" -> 18
+            "JambThickness": extract_jamb_thickness_full(quote_row["Jamb Type"]),
             "Form": quote_row["Form"],
             "Undercut": undercut,
             "FinishedFloorHeight": finished_floor_height,
@@ -370,7 +387,6 @@ with st.form("add_measurement_form", clear_on_submit=True):
 
         st.session_state.production_rows.append(new_row)
         st.success("Measurement added.")
-
 
 # -------------------------------------------------------------
 # 3. CSV IMPORTER
