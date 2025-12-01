@@ -120,34 +120,42 @@ with tabs[0]:
     desc_row = HINGE_DF[HINGE_DF["Code"] == sku]
     desc = desc_row.iloc[0]["Description"] if not desc_row.empty else "DESCRIPTION NOT FOUND"
 
-    if st.button("Add Line"):
+if st.button("Add Line"):
 
-        # Get leaf cost
-        leaf_cost = leaf_price(S["door_leaf_prices"][leaf_type], height, width, thickness)
+    # ---------------------------------------------------------
+    # 1. TRY NORMAL PRICE FIRST
+    # ---------------------------------------------------------
+    leaf_cost = leaf_price(S["door_leaf_prices"][leaf_type], height, width, thickness)
 
-        # --- POA LOGIC ---
-        poa_key = f"poa_{leaf_type}_{height}_{width}_{thickness}"
+    # ---------------------------------------------------------
+    # 2. POA HANDLING
+    # ---------------------------------------------------------
+    poa_key = f"poa_{leaf_type}_{height}_{width}_{thickness}"
 
-        if leaf_cost is None:
-            # FIRST TIME: show info + create input
-            if poa_key not in st.session_state:
-                st.warning(f"❗ This leaf size {leaf_type} {height}x{width} ({thickness}) has NO price. It is POA.")
-                st.session_state[poa_key] = 0.0
+    if leaf_cost is None:
 
-        # Show price input
+        # If first time seeing this POA combo, initialize its storage
+        if poa_key not in st.session_state:
+            st.warning(f"❗ This leaf size {leaf_type} {height}x{width} ({thickness}) has NO price. It is POA.")
+            st.session_state[poa_key] = 0.0
+
+        # Show the input every time POA is hit
         user_poa = st.number_input(
             f"Enter POA price for {leaf_type} {height}x{width} ({thickness})",
             min_value=0.0,
             key=poa_key
         )
 
+        # If user hasn't entered a value, stop here
         if user_poa == 0:
-            st.stop()   # wait for them to input
-        else:
-            leaf_cost = user_poa
+            st.stop()
 
-    # ==== COST CALCULATIONS ====
+        # Set POA value as leaf_cost
+        leaf_cost = user_poa
 
+    # ---------------------------------------------------------
+    # 3. COST CALCULATION (leaf_cost is ALWAYS valid now)
+    # ---------------------------------------------------------
     leaf_mult = 1 if form == "Single" else 2
 
     frame_cost_val, frame_m, leg_mm, head_mm = frame_cost_and_pieces(
@@ -163,6 +171,9 @@ with tabs[0]:
 
     labour = S["labour_single"] if form == "Single" else S["labour_double"]
 
+    # ---------------------------------------------------------
+    # 4. BUILD ROW
+    # ---------------------------------------------------------
     row = {
         "Customer": st.session_state.cust,
         "Project": st.session_state.proj,
@@ -185,7 +196,7 @@ with tabs[0]:
         "Screw Cost": screws * leaf_mult * S["screw_cost"],
         "Frame Length (m)": frame_m,
         "Leg Length (mm)": leg_mm,
-        "Head Length (mm)": head_mm
+        "Head Length (mm)": head_mm,
     }
 
     row["Total Cost"] = (
@@ -199,42 +210,6 @@ with tabs[0]:
 
     st.session_state.rows.append(row)
     st.success("Door line added!")
-
-
-
-    # ---------------------
-    # SUMMARY TILES
-    # ---------------------
-    if st.session_state.rows:
-        df_items = pd.DataFrame(st.session_state.rows)
-
-        total_lines = len(df_items)
-        total_qty = df_items["Qty"].sum()
-        total_cost = df_items["Total Cost"].sum()
-
-        t1, t2, t3 = st.columns(3)
-
-        with t1:
-            st.metric("Total Lines", total_lines)
-
-        with t2:
-            st.metric("Total Qty", int(total_qty))
-
-        with t3:
-            st.metric("Total Cost", f"${total_cost:,.2f}")
-
-        # ---------------------
-        # CURRENT ITEMS (in expander)
-        # ---------------------
-        with st.expander("View Current Items", expanded=False):
-            st.dataframe(df_items, height=300)
-
-    # Reset Button
-    if st.button("Reset All ❌"):
-        st.session_state.rows = []
-        st.session_state.cust = ""
-        st.session_state.proj = ""
-        st.success("Reset complete.")
 
 # -------------------------------------------------------------
 # TAB 2 — QUOTE TABLE
