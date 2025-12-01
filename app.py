@@ -312,6 +312,22 @@ with tab2:
         st.success(f"Quote {qnum} saved!")
 
     st.download_button("Download CSV", new_df.to_csv(index=False), "quote.csv")
+    
+    # Delete a quote
+    st.subheader("Delete a Quote")
+
+    q_delete = st.selectbox("Select Quote to Delete", [""] + qlist, key="delete_q")
+
+    if st.button("Delete Selected Quote 🗑️"):
+        if q_delete:
+           path = os.path.join("quotes", f"{q_delete}.json")
+           if os.path.exists(path):
+               os.remove(path)
+               st.success(f"Quote {q_delete} deleted.")
+               st.experimental_rerun()
+           else:
+               st.error("Quote file not found.")
+
 
 
 
