@@ -69,24 +69,25 @@ S = st.session_state.settings
 # =============================================================
 # TABS
 # =============================================================
-tabs = st.tabs(["Estimator", "Quote Table", "Production", "Settings", "Quote Lookup"])
+tabs = st.tabs(["Estimator + Quote Table", "Production", "Settings", "Quote Lookup"])
 
 # -------------------------------------------------------------
-# TAB 1 — ESTIMATOR (DELUXE VERSION)
+# SUPER TAB — ESTIMATOR + LIVE QUOTE SUMMARY
 # -------------------------------------------------------------
 with tabs[0]:
-    st.header("Estimator")
+    st.header("Estimator + Live Quote Summary")
 
-    # ---------------------
-    # CLIENT DETAILS
-    # ---------------------
+    # =========================================================
+    # A. CLIENT DETAILS
+    # =========================================================
     with st.expander("Client Details", expanded=True):
         st.session_state.cust = st.text_input("Customer Name", value=st.session_state.cust)
         st.session_state.proj = st.text_input("Project Name", value=st.session_state.proj)
 
-    # ---------------------
-    # ADD DOOR LINE
-    # ---------------------
+
+    # =========================================================
+    # B. ADD DOOR LINE (with POA handling)
+    # =========================================================
     st.subheader("Add Door Line")
 
     col_left, col_right = st.columns([2, 1])
@@ -120,122 +121,49 @@ with tabs[0]:
     desc_row = HINGE_DF[HINGE_DF["Code"] == sku]
     desc = desc_row.iloc[0]["Description"] if not desc_row.empty else "DESCRIPTION NOT FOUND"
 
-if st.button("Add Line"):
 
-    # ---------------------------------------------------------
-    # 1. TRY NORMAL PRICE FIRST
-    # ---------------------------------------------------------
-    leaf_cost = leaf_price(S["door_leaf_prices"][leaf_type], height, width, thickness)
+    # =========================================================
+    # ADD LINE BUTTON + POA LOGIC (BULLETPROOF)
+    # =========================================================
+    if st.button("Add Line"):
 
-    # ---------------------------------------------------------
-    # 2. POA HANDLING
-    # ---------------------------------------------------------
-    poa_key = f"poa_{leaf_type}_{height}_{width}_{thickness}"
+        # Unique POA key
+        poa_key = f"poa_{leaf_type}_{height}_{width}_{thickness}"
 
-    if leaf_cost is None:
+        # Try normal price
+        leaf_cost = leaf_price(S["door_leaf_prices"][leaf_type], height, width, thickness)
 
-        # If first time seeing this POA combo, initialize its storage
-        if poa_key not in st.session_state:
-            st.warning(f"❗ This leaf size {leaf_type} {height}x{width} ({thickness}) has NO price. It is POA.")
+        # -------------------------
+        # PHASE 1 - First POA trigger
+        # -------------------------
+        if leaf_cost is None and poa_key not in st.session_state:
+            st.warning(f"❗ This leaf {leaf_type} {height}x{width} ({thickness}) has NO price. Enter POA value.")
             st.session_state[poa_key] = 0.0
-
-        # Show the input every time POA is hit
-        user_poa = st.number_input(
-            f"Enter POA price for {leaf_type} {height}x{width} ({thickness})",
-            min_value=0.0,
-            key=poa_key
-        )
-
-        # If user hasn't entered a value, stop here
-        if user_poa == 0:
             st.stop()
 
-        # Set POA value as leaf_cost
-        leaf_cost = user_poa
+        # -------------------------
+        # PHASE 2 - Show POA input
+        # -------------------------
+        if leaf_cost is None:
+            user_poa = st.number_input(
+                f"Enter POA price for {leaf_type} {height}x{width} ({thickness})",
+                min_value=0.0,
+                key=poa_key
+            )
 
-    # ---------------------------------------------------------
-    # 3. COST CALCULATION (leaf_cost is ALWAYS valid now)
-    # ---------------------------------------------------------
-    leaf_mult = 1 if form == "Single" else 2
+            if user_poa == 0:
+                st.stop()
 
-    frame_cost_val, frame_m, leg_mm, head_mm = frame_cost_and_pieces(
-        height, width, jamb, form,
-        S["frame_prices"], S["minimum_frame_charge"]
-    )
+            leaf_cost = user_poa
+            del st.session_state[poa_key]  # reset state
 
-    stop_cost_val = stop_cost(
-        frame_m,
-        S["frame_prices"]["26A 30x10 Door Stop"],
-        S["minimum_frame_charge"]
-    )
-
-    labour = S["labour_single"] if form == "Single" else S["labour_double"]
-
-    # ---------------------------------------------------------
-    # 4. BUILD ROW
-    # ---------------------------------------------------------
-    row = {
-        "Customer": st.session_state.cust,
-        "Project": st.session_state.proj,
-        "SKU": sku,
-        "Description": desc,
-        "Leaf": leaf_type,
-        "Thickness": thickness,
-        "Height": height,
-        "Width": width,
-        "Form": form,
-        "Qty": qty,
-        "Jamb Type": jamb,
-        "Leaf Cost": leaf_cost * leaf_mult,
-        "Frame Cost": frame_cost_val,
-        "Stop Cost": stop_cost_val,
-        "Labour": labour,
-        "Hinges": hinges * leaf_mult,
-        "Hinge Cost": hinges * leaf_mult * S["hinge_price"],
-        "Screws": screws * leaf_mult,
-        "Screw Cost": screws * leaf_mult * S["screw_cost"],
-        "Frame Length (m)": frame_m,
-        "Leg Length (mm)": leg_mm,
-        "Head Length (mm)": head_mm,
-    }
-
-    row["Total Cost"] = (
-        row["Leaf Cost"]
-        + row["Frame Cost"]
-        + row["Stop Cost"]
-        + row["Labour"]
-        + row["Hinge Cost"]
-        + row["Screw Cost"]
-    )
-
-    st.session_state.rows.append(row)
-    st.success("Door line added!")
-
-# -------------------------------------------------------------
-# TAB 2 — QUOTE TABLE
-# -------------------------------------------------------------
-with tabs[1]:
-    st.header("Quote Summary")
-
-    if not st.session_state.rows:
-        st.info("Add doors first.")
-        st.stop()
-
-    df = pd.DataFrame(st.session_state.rows)
-
-    st.subheader(f"Customer: {st.session_state.cust}")
-    st.subheader(f"Project: {st.session_state.proj}")
-
-    qnum = st.text_input("Quote Number", value=suggest_next_q())
-
-    mk = st.number_input("Markup %", value=25)
-
-    new_rows = []
-    for _, r in df.iterrows():
-        leaf_mult = 1 if r["Form"] == "Single" else 2
+        # =========================================================
+        # COST CALCULATIONS
+        # =========================================================
+        leaf_mult = 1 if form == "Single" else 2
 
         frame_cost_val, frame_m, leg_mm, head_mm = frame_cost_and_pieces(
-            r["Height"], r["Width"], r["Jamb Type"], r["Form"],
+            height, width, jamb, form,
             S["frame_prices"], S["minimum_frame_charge"]
         )
 
@@ -245,42 +173,125 @@ with tabs[1]:
             S["minimum_frame_charge"]
         )
 
-        hinge_cost = r["Hinges"] * S["hinge_price"]
-        screw_cost = r["Screws"] * S["screw_cost"]
-        labour = S["labour_single"] if r["Form"] == "Single" else S["labour_double"]
+        labour = S["labour_single"] if form == "Single" else S["labour_double"]
 
-        total = (
-            r["Leaf Cost"] + frame_cost_val + stop_cost_val +
-            labour + hinge_cost + screw_cost
-        )
-
-        new_rows.append({
-            **r,
+        row = {
+            "Customer": st.session_state.cust,
+            "Project": st.session_state.proj,
+            "SKU": sku,
+            "Description": desc,
+            "Leaf": leaf_type,
+            "Thickness": thickness,
+            "Height": height,
+            "Width": width,
+            "Form": form,
+            "Qty": qty,
+            "Jamb Type": jamb,
+            "Leaf Cost": leaf_cost * leaf_mult,
             "Frame Cost": frame_cost_val,
             "Stop Cost": stop_cost_val,
             "Labour": labour,
-            "Hinge Cost": hinge_cost,
-            "Screw Cost": screw_cost,
-            "Total Cost": total,
-            "Sell": total * (1 + mk / 100),
-        })
+            "Hinges": hinges * leaf_mult,
+            "Hinge Cost": hinges * leaf_mult * S["hinge_price"],
+            "Screws": screws * leaf_mult,
+            "Screw Cost": screws * leaf_mult * S["screw_cost"],
+            "Frame Length (m)": frame_m,
+            "Leg Length (mm)": leg_mm,
+            "Head Length (mm)": head_mm,
+        }
 
-    final_df = pd.DataFrame(new_rows)
-    st.dataframe(final_df)
-
-    if st.button("Save Quote 💾"):
-        save_quote(
-            qnum,
-            st.session_state.cust,
-            st.session_state.proj,
-            df.to_dict(orient="records"),
-            final_df.to_dict(orient="records"),
-            S
+        row["Total Cost"] = (
+            row["Leaf Cost"]
+            + row["Frame Cost"]
+            + row["Stop Cost"]
+            + row["Labour"]
+            + row["Hinge Cost"]
+            + row["Screw Cost"]
         )
-        st.success(f"Quote {qnum} saved!")
 
-    st.download_button("Download CSV", final_df.to_csv(index=False), "quote.csv")
+        st.session_state.rows.append(row)
+        st.success("Door line added!")
 
+
+    # =========================================================
+    # C. SUMMARY TILES
+    # =========================================================
+    if st.session_state.rows:
+        df = pd.DataFrame(st.session_state.rows)
+
+        # Markup input (global)
+        mk = st.number_input("Markup %", value=25)
+
+        # Calculate sell + margin
+        df["Sell"] = df["Total Cost"] * (1 + mk / 100)
+        df["Margin %"] = (df["Sell"] - df["Total Cost"]) / df["Sell"] * 100
+
+        total_lines = len(df)
+        total_qty = df["Qty"].sum()
+        total_cost = df["Total Cost"].sum()
+        total_sell = df["Sell"].sum()
+        overall_margin = (total_sell - total_cost) / total_sell * 100 if total_sell > 0 else 0
+
+        c1, c2, c3, c4, c5 = st.columns(5)
+
+        c1.metric("Lines", total_lines)
+        c2.metric("Total Qty", int(total_qty))
+        c3.metric("Total Cost", f"${total_cost:,.2f}")
+        c4.metric("Total Sell", f"${total_sell:,.2f}")
+        c5.metric("Margin %", f"{overall_margin:.1f}%")
+
+
+        # =====================================================
+        # D. MAIN SUMMARY TABLE
+        # =====================================================
+        st.subheader("Quote Summary (Clean View)")
+
+        summary_df = df[[
+            "SKU",
+            "Description",
+            "Qty",
+            "Total Cost",
+            "Sell",
+            "Margin %"
+        ]]
+
+        st.dataframe(summary_df, height=300)
+
+
+        # =====================================================
+        # FULL BREAKDOWN TABLE EXPANDER
+        # =====================================================
+        with st.expander("Full Breakdown (Detailed Costs)", expanded=False):
+            st.dataframe(df, height=400)
+
+
+        # =====================================================
+        # SAVE QUOTE + EXPORT
+        # =====================================================
+        qnum = st.text_input("Quote Number", value=suggest_next_q())
+
+        if st.button("Save Quote 💾"):
+            save_quote(
+                qnum,
+                st.session_state.cust,
+                st.session_state.proj,
+                df.to_dict(orient="records"),
+                df.to_dict(orient="records"),   # recalculated rows identical here
+                S
+            )
+            st.success(f"Quote {qnum} saved!")
+
+        st.download_button("Download CSV", df.to_csv(index=False), "quote.csv")
+
+
+    # =========================================================
+    # RESET BUTTON
+    # =========================================================
+    if st.button("Reset All ❌"):
+        st.session_state.rows = []
+        st.session_state.cust = ""
+        st.session_state.proj = ""
+        st.success("Reset complete.")
 
 # -------------------------------------------------------------
 # TAB 3 — PRODUCTION
