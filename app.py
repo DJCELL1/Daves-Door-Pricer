@@ -188,29 +188,37 @@ with tab1:
 
 
 # =============================================================
-# TAB 2 — QUOTE TABLE (LIVE CALCULATIONS)
+# TAB 2 — QUOTE TABLE (LIVE + SAVE + LOAD)
 # =============================================================
+from core.save_load import (
+    suggest_next_q,
+    save_quote,
+    load_quote,
+    get_existing_q_numbers
+)
+
 with tab2:
     st.header("Quote Table")
 
     if st.session_state.rows:
+
         df = pd.DataFrame(st.session_state.rows)
 
         st.subheader(f"Customer: {st.session_state.cust}")
         st.subheader(f"Project: {st.session_state.proj}")
 
-        # Markup
+        # Suggested Q number
+        suggested_q = suggest_next_q()
+        qnum = st.text_input("Q Number", value=suggested_q)
+
         mk = st.number_input("Markup %", value=25)
 
         # Recalculate every row with current settings
         recalculated_rows = []
 
         for _, r in df.iterrows():
-
-            # Leaf multiplier
             leaf_mult = 1 if r["Form"] == "Single" else 2
 
-            # Recalculate frame + stop cost
             frame_cost_val, frame_m, leg_mm, head_mm = frame_cost_and_pieces(
                 r["Height"],
                 r["Width"],
@@ -226,13 +234,10 @@ with tab2:
                 S["minimum_frame_charge"]
             )
 
-            # Hinge + screw cost updated
             hinge_cost = r["Hinges"] * S["hinge_price"]
             screw_cost = r["Screws"] * S["screw_cost"]
-
             labour = S["labour_single"] if r["Form"] == "Single" else S["labour_double"]
 
-            # Rebuild total cost
             total = (
                 r["Leaf Cost"]
                 + frame_cost_val
@@ -242,7 +247,6 @@ with tab2:
                 + screw_cost
             )
 
-            # Attach recalculated data
             recalculated_rows.append({
                 **r,
                 "Frame Cost": frame_cost_val,
@@ -256,11 +260,25 @@ with tab2:
             })
 
         new_df = pd.DataFrame(recalculated_rows)
-
         st.dataframe(new_df)
+
+        # Save Quote Button
+        if st.button("Save Quote 💾"):
+            save_quote(
+                qnum,
+                st.session_state.cust,
+                st.session_state.proj,
+                df.to_dict(orient="records"),
+                new_df.to_dict(orient="records"),
+                S
+            )
+            st.success(f"Quote {qnum} saved!")
+
         st.download_button("Download CSV", new_df.to_csv(index=False), "quote.csv")
+
     else:
         st.info("Add some doors first.")
+
 
 
 
@@ -440,3 +458,30 @@ with tab4:
         # FULL BREAKDOWN
         st.subheader("Full Breakdown")
         st.dataframe(df)
+# =============================================================
+# TAB 5 — QUOTE LOOKUP
+# =============================================================
+tab5 = st.tabs(["Estimator", "Quote Table", "Settings", "Production", "Quote Lookup"])[4]
+
+with tab5:
+    st.header("Quote Lookup")
+
+    qnums = get_existing_q_numbers()
+
+    if not qnums:
+        st.info("No saved quotes yet.")
+    else:
+        q_choice = st.selectbox("Select Quote", qnums)
+
+        if st.button("Load Selected Quote"):
+            data = load_quote(q_choice)
+            if data:
+                raw = data["raw_rows"]
+                st.session_state.rows = raw
+                st.session_state.cust = data["customer"]
+                st.session_state.proj = data["project"]
+                st.success(f"Loaded quote {q_choice}")
+                st.experimental_rerun()
+            else:
+                st.error("Could not load quote.")
+
