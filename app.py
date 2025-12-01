@@ -121,63 +121,85 @@ with tabs[0]:
     desc = desc_row.iloc[0]["Description"] if not desc_row.empty else "DESCRIPTION NOT FOUND"
 
     if st.button("Add Line"):
-        leaf_cost = leaf_price(S["door_leaf_prices"][leaf_type], height, width, thickness)
 
-        if leaf_cost is None:
-            st.warning("❗ POA – This leaf size is not in the price list.")
-            st.stop()
+    # Get leaf cost
+    leaf_cost = leaf_price(S["door_leaf_prices"][leaf_type], height, width, thickness)
 
-        leaf_mult = 1 if form == "Single" else 2
+    # --- POA LOGIC ---
+    poa_key = f"poa_{leaf_type}_{height}_{width}_{thickness}"
 
-        frame_cost_val, frame_m, leg_mm, head_mm = frame_cost_and_pieces(
-            height, width, jamb, form,
-            S["frame_prices"], S["minimum_frame_charge"]
+    if leaf_cost is None:
+        # FIRST TIME: show info + create input
+        if poa_key not in st.session_state:
+            st.warning(f"❗ This leaf size {leaf_type} {height}x{width} ({thickness}) has NO price. It is POA.")
+            st.session_state[poa_key] = 0.0
+
+        # Show price input
+        user_poa = st.number_input(
+            f"Enter POA price for {leaf_type} {height}x{width} ({thickness})",
+            min_value=0.0,
+            key=poa_key
         )
 
-        stop_cost_val = stop_cost(
-            frame_m,
-            S["frame_prices"]["26A 30x10 Door Stop"],
-            S["minimum_frame_charge"]
-        )
+        if user_poa == 0:
+            st.stop()   # wait for them to input
+        else:
+            leaf_cost = user_poa
 
-        labour = S["labour_single"] if form == "Single" else S["labour_double"]
+    # ==== COST CALCULATIONS ====
 
-        row = {
-            "Customer": st.session_state.cust,
-            "Project": st.session_state.proj,
-            "SKU": sku,
-            "Description": desc,
-            "Leaf": leaf_type,
-            "Thickness": thickness,
-            "Height": height,
-            "Width": width,
-            "Form": form,
-            "Qty": qty,
-            "Jamb Type": jamb,
-            "Leaf Cost": leaf_cost * leaf_mult,
-            "Frame Cost": frame_cost_val,
-            "Stop Cost": stop_cost_val,
-            "Labour": labour,
-            "Hinges": hinges * leaf_mult,
-            "Hinge Cost": hinges * leaf_mult * S["hinge_price"],
-            "Screws": screws * leaf_mult,
-            "Screw Cost": screws * leaf_mult * S["screw_cost"],
-            "Frame Length (m)": frame_m,
-            "Leg Length (mm)": leg_mm,
-            "Head Length (mm)": head_mm,
-        }
+    leaf_mult = 1 if form == "Single" else 2
 
-        row["Total Cost"] = (
-            row["Leaf Cost"]
-            + row["Frame Cost"]
-            + row["Stop Cost"]
-            + row["Labour"]
-            + row["Hinge Cost"]
-            + row["Screw Cost"]
-        )
+    frame_cost_val, frame_m, leg_mm, head_mm = frame_cost_and_pieces(
+        height, width, jamb, form,
+        S["frame_prices"], S["minimum_frame_charge"]
+    )
 
-        st.session_state.rows.append(row)
-        st.success("Door line added!")
+    stop_cost_val = stop_cost(
+        frame_m,
+        S["frame_prices"]["26A 30x10 Door Stop"],
+        S["minimum_frame_charge"]
+    )
+
+    labour = S["labour_single"] if form == "Single" else S["labour_double"]
+
+    row = {
+        "Customer": st.session_state.cust,
+        "Project": st.session_state.proj,
+        "SKU": sku,
+        "Description": desc,
+        "Leaf": leaf_type,
+        "Thickness": thickness,
+        "Height": height,
+        "Width": width,
+        "Form": form,
+        "Qty": qty,
+        "Jamb Type": jamb,
+        "Leaf Cost": leaf_cost * leaf_mult,
+        "Frame Cost": frame_cost_val,
+        "Stop Cost": stop_cost_val,
+        "Labour": labour,
+        "Hinges": hinges * leaf_mult,
+        "Hinge Cost": hinges * leaf_mult * S["hinge_price"],
+        "Screws": screws * leaf_mult,
+        "Screw Cost": screws * leaf_mult * S["screw_cost"],
+        "Frame Length (m)": frame_m,
+        "Leg Length (mm)": leg_mm,
+        "Head Length (mm)": head_mm
+    }
+
+    row["Total Cost"] = (
+        row["Leaf Cost"]
+        + row["Frame Cost"]
+        + row["Stop Cost"]
+        + row["Labour"]
+        + row["Hinge Cost"]
+        + row["Screw Cost"]
+    )
+
+    st.session_state.rows.append(row)
+    st.success("Door line added!")
+
 
 
     # ---------------------
