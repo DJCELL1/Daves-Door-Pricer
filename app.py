@@ -122,17 +122,17 @@ with tabs[0]:
 
     if st.button("Add Line"):
 
-    # Get leaf cost
-    leaf_cost = leaf_price(S["door_leaf_prices"][leaf_type], height, width, thickness)
+        # Get leaf cost
+        leaf_cost = leaf_price(S["door_leaf_prices"][leaf_type], height, width, thickness)
 
-    # --- POA LOGIC ---
-    poa_key = f"poa_{leaf_type}_{height}_{width}_{thickness}"
+        # --- POA LOGIC ---
+        poa_key = f"poa_{leaf_type}_{height}_{width}_{thickness}"
 
-    if leaf_cost is None:
-        # FIRST TIME: show info + create input
-        if poa_key not in st.session_state:
-            st.warning(f"❗ This leaf size {leaf_type} {height}x{width} ({thickness}) has NO price. It is POA.")
-            st.session_state[poa_key] = 0.0
+        if leaf_cost is None:
+            # FIRST TIME: show info + create input
+            if poa_key not in st.session_state:
+                st.warning(f"❗ This leaf size {leaf_type} {height}x{width} ({thickness}) has NO price. It is POA.")
+                st.session_state[poa_key] = 0.0
 
         # Show price input
         user_poa = st.number_input(
@@ -175,7 +175,7 @@ with tabs[0]:
         "Form": form,
         "Qty": qty,
         "Jamb Type": jamb,
-        "Leaf Cost": leaf_cost * leaf_mult,
+        "Leaf Cost": leaf_cost * leaf_mult,git
         "Frame Cost": frame_cost_val,
         "Stop Cost": stop_cost_val,
         "Labour": labour,
