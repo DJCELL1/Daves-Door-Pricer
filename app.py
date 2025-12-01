@@ -72,122 +72,147 @@ S = st.session_state.settings
 tabs = st.tabs(["Estimator", "Quote Table", "Production", "Settings", "Quote Lookup"])
 
 # -------------------------------------------------------------
-# TAB 1 — ESTIMATOR
+# TAB 1 — ESTIMATOR (DELUXE VERSION)
 # -------------------------------------------------------------
 with tabs[0]:
     st.header("Estimator")
 
     # ---------------------
-    # Client Details
+    # CLIENT DETAILS
     # ---------------------
     with st.expander("Client Details", expanded=True):
         st.session_state.cust = st.text_input("Customer Name", value=st.session_state.cust)
         st.session_state.proj = st.text_input("Project Name", value=st.session_state.proj)
 
     # ---------------------
-    # Item Input
+    # ADD DOOR LINE
     # ---------------------
-    with st.expander("Add Door Line", expanded=True):
+    st.subheader("Add Door Line")
 
+    col_left, col_right = st.columns([2, 1])
+
+    with col_left:
         heights = ["1980", "2200", "2400"]
         widths = ["410", "460", "510", "560", "610", "660", "710", "760", "810", "860", "910", "960"]
 
         leaf_type = st.selectbox("Leaf Type", list(S["door_leaf_prices"].keys()))
         thickness = st.selectbox("Thickness", ["35mm", "38mm"])
         jamb = st.selectbox("Jamb Type", list(S["frame_prices"].keys()))
+
+    with col_right:
         height = int(st.selectbox("Height", heights))
         width = int(st.selectbox("Width", widths))
         form = st.selectbox("Single / Double", ["Single", "Double"])
         qty = st.number_input("Qty", min_value=1, value=1)
 
-        # Hinge lookup
-        hm = HINGE_DF[(HINGE_DF["Height"] == height) & (HINGE_DF["Width"] == width)]
-        if not hm.empty:
-            hinges = int(hm.iloc[0]["Hinges"])
-            screws = int(hm.iloc[0]["Screws"])
-        else:
-            hinges = S["hinges_per_door"]
-            screws = S["hinges_per_door"] * S["hinge_screws"]
+    # Hinge lookup
+    hm = HINGE_DF[(HINGE_DF["Height"] == height) & (HINGE_DF["Width"] == width)]
+    if not hm.empty:
+        hinges = int(hm.iloc[0]["Hinges"])
+        screws = int(hm.iloc[0]["Screws"])
+    else:
+        hinges = S["hinges_per_door"]
+        screws = S["hinges_per_door"] * S["hinge_screws"]
 
-        prefix = S["prefix_map"][leaf_type]
-        sku = create_sku(prefix, thickness, height, width, jamb, form)
+    prefix = S["prefix_map"][leaf_type]
+    sku = create_sku(prefix, thickness, height, width, jamb, form)
 
-        desc_row = HINGE_DF[HINGE_DF["Code"] == sku]
-        desc = desc_row.iloc[0]["Description"] if not desc_row.empty else "DESCRIPTION NOT FOUND"
+    desc_row = HINGE_DF[HINGE_DF["Code"] == sku]
+    desc = desc_row.iloc[0]["Description"] if not desc_row.empty else "DESCRIPTION NOT FOUND"
 
-        # Add Button
-        if st.button("Add Line"):
-            leaf_cost = leaf_price(S["door_leaf_prices"][leaf_type], height, width, thickness)
+    if st.button("Add Line"):
+        leaf_cost = leaf_price(S["door_leaf_prices"][leaf_type], height, width, thickness)
 
-            if leaf_cost is None:
-                st.warning("❗ POA – This leaf size not found. Add manually in Settings.")
-                st.stop()
+        if leaf_cost is None:
+            st.warning("❗ POA – This leaf size is not in the price list.")
+            st.stop()
 
-            leaf_mult = 1 if form == "Single" else 2
+        leaf_mult = 1 if form == "Single" else 2
 
-            frame_cost_val, frame_m, leg_mm, head_mm = frame_cost_and_pieces(
-                height, width, jamb, form,
-                S["frame_prices"], S["minimum_frame_charge"]
-            )
+        frame_cost_val, frame_m, leg_mm, head_mm = frame_cost_and_pieces(
+            height, width, jamb, form,
+            S["frame_prices"], S["minimum_frame_charge"]
+        )
 
-            stop_cost_val = stop_cost(
-                frame_m,
-                S["frame_prices"]["26A 30x10 Door Stop"],
-                S["minimum_frame_charge"]
-            )
+        stop_cost_val = stop_cost(
+            frame_m,
+            S["frame_prices"]["26A 30x10 Door Stop"],
+            S["minimum_frame_charge"]
+        )
 
-            labour = S["labour_single"] if form == "Single" else S["labour_double"]
+        labour = S["labour_single"] if form == "Single" else S["labour_double"]
 
-            row = {
-                "Customer": st.session_state.cust,
-                "Project": st.session_state.proj,
-                "SKU": sku,
-                "Description": desc,
-                "Leaf": leaf_type,
-                "Thickness": thickness,
-                "Height": height,
-                "Width": width,
-                "Form": form,
-                "Qty": qty,
-                "Jamb Type": jamb,
-                "Leaf Cost": leaf_cost * leaf_mult,
-                "Frame Cost": frame_cost_val,
-                "Stop Cost": stop_cost_val,
-                "Labour": labour,
-                "Hinges": hinges * leaf_mult,
-                "Hinge Cost": hinges * leaf_mult * S["hinge_price"],
-                "Screws": screws * leaf_mult,
-                "Screw Cost": screws * leaf_mult * S["screw_cost"],
-                "Frame Length (m)": frame_m,
-                "Leg Length (mm)": leg_mm,
-                "Head Length (mm)": head_mm
-            }
+        row = {
+            "Customer": st.session_state.cust,
+            "Project": st.session_state.proj,
+            "SKU": sku,
+            "Description": desc,
+            "Leaf": leaf_type,
+            "Thickness": thickness,
+            "Height": height,
+            "Width": width,
+            "Form": form,
+            "Qty": qty,
+            "Jamb Type": jamb,
+            "Leaf Cost": leaf_cost * leaf_mult,
+            "Frame Cost": frame_cost_val,
+            "Stop Cost": stop_cost_val,
+            "Labour": labour,
+            "Hinges": hinges * leaf_mult,
+            "Hinge Cost": hinges * leaf_mult * S["hinge_price"],
+            "Screws": screws * leaf_mult,
+            "Screw Cost": screws * leaf_mult * S["screw_cost"],
+            "Frame Length (m)": frame_m,
+            "Leg Length (mm)": leg_mm,
+            "Head Length (mm)": head_mm,
+        }
 
-            row["Total Cost"] = (
-                row["Leaf Cost"]
-                + row["Frame Cost"]
-                + row["Stop Cost"]
-                + row["Labour"]
-                + row["Hinge Cost"]
-                + row["Screw Cost"]
-            )
+        row["Total Cost"] = (
+            row["Leaf Cost"]
+            + row["Frame Cost"]
+            + row["Stop Cost"]
+            + row["Labour"]
+            + row["Hinge Cost"]
+            + row["Screw Cost"]
+        )
 
-            st.session_state.rows.append(row)
-            st.success("Door line added!")
+        st.session_state.rows.append(row)
+        st.success("Door line added!")
+
 
     # ---------------------
-    # Current Items
+    # SUMMARY TILES
     # ---------------------
     if st.session_state.rows:
-        st.subheader("Current Items")
-        st.dataframe(pd.DataFrame(st.session_state.rows))
+        df_items = pd.DataFrame(st.session_state.rows)
 
+        total_lines = len(df_items)
+        total_qty = df_items["Qty"].sum()
+        total_cost = df_items["Total Cost"].sum()
+
+        t1, t2, t3 = st.columns(3)
+
+        with t1:
+            st.metric("Total Lines", total_lines)
+
+        with t2:
+            st.metric("Total Qty", int(total_qty))
+
+        with t3:
+            st.metric("Total Cost", f"${total_cost:,.2f}")
+
+        # ---------------------
+        # CURRENT ITEMS (in expander)
+        # ---------------------
+        with st.expander("View Current Items", expanded=False):
+            st.dataframe(df_items, height=300)
+
+    # Reset Button
     if st.button("Reset All ❌"):
         st.session_state.rows = []
         st.session_state.cust = ""
         st.session_state.proj = ""
         st.success("Reset complete.")
-
 
 # -------------------------------------------------------------
 # TAB 2 — QUOTE TABLE
