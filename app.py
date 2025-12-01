@@ -175,7 +175,7 @@ with tabs[0]:
         "Form": form,
         "Qty": qty,
         "Jamb Type": jamb,
-        "Leaf Cost": leaf_cost * leaf_mult,git
+        "Leaf Cost": leaf_cost * leaf_mult,
         "Frame Cost": frame_cost_val,
         "Stop Cost": stop_cost_val,
         "Labour": labour,
