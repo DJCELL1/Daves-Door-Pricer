@@ -185,8 +185,6 @@ with tab1:
     if st.session_state.rows:
         st.dataframe(pd.DataFrame(st.session_state.rows))
 
-
-
 # =============================================================
 # TAB 2 — QUOTE TABLE (LIVE + SAVE + LOAD)
 # =============================================================
@@ -200,86 +198,120 @@ from core.save_load import (
 with tab2:
     st.header("Quote Table")
 
-    if st.session_state.rows:
+    # ------------------------------
+    # LOAD EXISTING QUOTES
+    # ------------------------------
+    qlist = get_existing_q_numbers()
 
-        df = pd.DataFrame(st.session_state.rows)
+    load_col, spacer, clear_col = st.columns([2,1,2])
 
-        st.subheader(f"Customer: {st.session_state.cust}")
-        st.subheader(f"Project: {st.session_state.proj}")
+    with load_col:
+        q_choice = st.selectbox("Load Existing Quote", [""] + qlist)
 
-        # Suggested Q number
-        suggested_q = suggest_next_q()
-        qnum = st.text_input("Q Number", value=suggested_q)
+    with clear_col:
+        if st.button("Clear Loaded Quote ❌"):
+            if "rows" in st.session_state:
+                del st.session_state["rows"]
+            if "cust" in st.session_state:
+                del st.session_state["cust"]
+            if "proj" in st.session_state:
+                del st.session_state["proj"]
+            st.success("Cleared loaded quote.")
+            st.experimental_rerun()
 
-        mk = st.number_input("Markup %", value=25)
+    # If user selects a quote to load
+    if q_choice:
+        data = load_quote(q_choice)
 
-        # Recalculate every row with current settings
-        recalculated_rows = []
+        if data:
+            # Load data BEFORE widgets are drawn
+            st.session_state.rows = data["raw_rows"]
+            st.session_state.cust = data["customer"]
+            st.session_state.proj = data["project"]
+            st.success(f"Loaded quote {q_choice}")
+            st.experimental_rerun()
 
-        for _, r in df.iterrows():
-            leaf_mult = 1 if r["Form"] == "Single" else 2
 
-            frame_cost_val, frame_m, leg_mm, head_mm = frame_cost_and_pieces(
-                r["Height"],
-                r["Width"],
-                r["Jamb Type"],
-                r["Form"],
-                S["frame_prices"],
-                S["minimum_frame_charge"]
-            )
-
-            stop_cost_val = stop_cost(
-                frame_m,
-                S["frame_prices"]["26A 30x10 Door Stop"],
-                S["minimum_frame_charge"]
-            )
-
-            hinge_cost = r["Hinges"] * S["hinge_price"]
-            screw_cost = r["Screws"] * S["screw_cost"]
-            labour = S["labour_single"] if r["Form"] == "Single" else S["labour_double"]
-
-            total = (
-                r["Leaf Cost"]
-                + frame_cost_val
-                + stop_cost_val
-                + labour
-                + hinge_cost
-                + screw_cost
-            )
-
-            recalculated_rows.append({
-                **r,
-                "Frame Cost": frame_cost_val,
-                "Stop Cost": stop_cost_val,
-                "Labour": labour,
-                "Hinge Cost": hinge_cost,
-                "Screw Cost": screw_cost,
-                "Total Cost": total,
-                "Sell": total * (1 + mk / 100),
-                "Margin %": ( (total * (1 + mk/100)) - total ) / (total * (1 + mk/100)) * 100
-            })
-
-        new_df = pd.DataFrame(recalculated_rows)
-        st.dataframe(new_df)
-
-        # Save Quote Button
-        if st.button("Save Quote 💾"):
-            save_quote(
-                qnum,
-                st.session_state.cust,
-                st.session_state.proj,
-                df.to_dict(orient="records"),
-                new_df.to_dict(orient="records"),
-                S
-            )
-            st.success(f"Quote {qnum} saved!")
-
-        st.download_button("Download CSV", new_df.to_csv(index=False), "quote.csv")
-
-    else:
+    # ------------------------------
+    # If no rows, show message
+    # ------------------------------
+    if not st.session_state.get("rows"):
         st.info("Add some doors first.")
+        st.stop()
 
+    # ------------------------------
+    # PROCESS + DISPLAY QUOTE
+    # ------------------------------
+    df = pd.DataFrame(st.session_state.rows)
 
+    st.subheader(f"Customer: {st.session_state.cust}")
+    st.subheader(f"Project: {st.session_state.proj}")
+
+    suggested_q = suggest_next_q()
+    qnum = st.text_input("Q Number", value=suggested_q)
+
+    mk = st.number_input("Markup %", value=25)
+
+    recalculated_rows = []
+
+    for _, r in df.iterrows():
+        leaf_mult = 1 if r["Form"] == "Single" else 2
+
+        frame_cost_val, frame_m, leg_mm, head_mm = frame_cost_and_pieces(
+            r["Height"],
+            r["Width"],
+            r["Jamb Type"],
+            r["Form"],
+            S["frame_prices"],
+            S["minimum_frame_charge"]
+        )
+
+        stop_cost_val = stop_cost(
+            frame_m,
+            S["frame_prices"]["26A 30x10 Door Stop"],
+            S["minimum_frame_charge"]
+        )
+
+        hinge_cost = r["Hinges"] * S["hinge_price"]
+        screw_cost = r["Screws"] * S["screw_cost"]
+        labour = S["labour_single"] if r["Form"] == "Single" else S["labour_double"]
+
+        total = (
+            r["Leaf Cost"]
+            + frame_cost_val
+            + stop_cost_val
+            + labour
+            + hinge_cost
+            + screw_cost
+        )
+
+        recalculated_rows.append({
+            **r,
+            "Frame Cost": frame_cost_val,
+            "Stop Cost": stop_cost_val,
+            "Labour": labour,
+            "Hinge Cost": hinge_cost,
+            "Screw Cost": screw_cost,
+            "Total Cost": total,
+            "Sell": total * (1 + mk / 100),
+            "Margin %": ((total * (1 + mk/100)) - total) / (total * (1 + mk/100)) * 100
+        })
+
+    new_df = pd.DataFrame(recalculated_rows)
+    st.dataframe(new_df)
+
+    if st.button("Save Quote 💾"):
+        save_quote(
+            qnum,
+            st.session_state.cust,
+            st.session_state.proj,
+            df.to_dict(orient="records"),
+            new_df.to_dict(orient="records"),
+            S
+        )
+        st.success(f"Quote {qnum} saved!")
+
+    st.download_button("Download CSV", new_df.to_csv(index=False), "quote.csv")
 
 
 
