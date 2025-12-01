@@ -266,24 +266,66 @@ with tab2:
 
 
 # =============================================================
-# TAB 3 — SETTINGS (NOW LIVE/REACTIVE)
+# TAB 3 — SETTINGS (ALWAYS LIVE + RESET DEFAULTS)
 # =============================================================
 with tab3:
-    st.header("Settings (Live Updates)")
+    st.header("Settings (Always Live)")
 
+    # Reset settings to defaults
+    if st.button("Reset Settings to Default 🔄"):
+        st.session_state.settings = get_default_settings()
+        S = st.session_state.settings
+        st.success("Settings reset to default values, uso.")
+        st.experimental_rerun()
+
+    st.subheader("Frame Prices")
     for k in S["frame_prices"]:
-        S["frame_prices"][k] = st.number_input(k, value=S["frame_prices"][k], key=f"fp_{k}")
+        S["frame_prices"][k] = st.number_input(
+            k,
+            value=S["frame_prices"][k],
+            key=f"fp_{k}"
+        )
 
-    S["labour_single"] = st.number_input("Single Labour", value=S["labour_single"], key="lab1")
-    S["labour_double"] = st.number_input("Double Labour", value=S["labour_double"], key="lab2")
+    st.subheader("Labour")
+    S["labour_single"] = st.number_input(
+        "Single Labour",
+        value=S["labour_single"],
+        key="lab1"
+    )
+    S["labour_double"] = st.number_input(
+        "Double Labour",
+        value=S["labour_double"],
+        key="lab2"
+    )
 
-    S["hinge_price"] = st.number_input("Hinge Price", value=S["hinge_price"], key="hingep")
-    S["hinges_per_door"] = st.number_input("Hinges per Door", value=S["hinges_per_door"], key="hingecount")
-    S["screw_cost"] = st.number_input("Screw Cost", value=S["screw_cost"], key="scr_cost")
-    S["hinge_screws"] = st.number_input("Screws per Hinge", value=S["hinge_screws"], key="scr_hinges")
+    st.subheader("Hardware Costs")
+    S["hinge_price"] = st.number_input(
+        "Hinge Price",
+        value=S["hinge_price"],
+        key="hingep"
+    )
+    S["hinges_per_door"] = st.number_input(
+        "Hinges per Door",
+        value=S["hinges_per_door"],
+        key="hingecount"
+    )
+    S["screw_cost"] = st.number_input(
+        "Screw Cost",
+        value=S["screw_cost"],
+        key="scr_cost"
+    )
+    S["hinge_screws"] = st.number_input(
+        "Screws per Hinge",
+        value=S["hinge_screws"],
+        key="scr_hinges"
+    )
 
-    S["minimum_frame_charge"] = st.number_input("Minimum Charge", value=S["minimum_frame_charge"], key="mincharge")
-
+    st.subheader("Minimum Charges")
+    S["minimum_frame_charge"] = st.number_input(
+        "Minimum Charge",
+        value=S["minimum_frame_charge"],
+        key="mincharge"
+    )
 
 
 # =============================================================
