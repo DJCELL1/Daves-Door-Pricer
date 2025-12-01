@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import math
 
 # Local modules
 from core.settings import get_default_settings
@@ -171,9 +172,7 @@ with tab1:
         st.session_state.rows.append(row)
 
 
-    # =========================================================
     # RESET BUTTON
-    # =========================================================
     if st.button("Reset All ❌"):
         for key in ["rows", "cust", "proj"]:
             if key in st.session_state:
@@ -181,7 +180,6 @@ with tab1:
 
         st.success("Everything reset, uce. Clean slate now.")
         st.stop()
-
 
     # SHOW CURRENT TABLE
     if st.session_state.rows:
@@ -213,23 +211,23 @@ with tab2:
 
 
 # =============================================================
-# TAB 3 — SETTINGS
+# TAB 3 — SETTINGS (NOW LIVE/REACTIVE)
 # =============================================================
 with tab3:
-    st.header("Settings")
+    st.header("Settings (Live Updates)")
 
     for k in S["frame_prices"]:
-        S["frame_prices"][k] = st.number_input(k, value=S["frame_prices"][k])
+        S["frame_prices"][k] = st.number_input(k, value=S["frame_prices"][k], key=f"fp_{k}")
 
-    S["labour_single"] = st.number_input("Single Labour", value=S["labour_single"])
-    S["labour_double"] = st.number_input("Double Labour", value=S["labour_double"])
+    S["labour_single"] = st.number_input("Single Labour", value=S["labour_single"], key="lab1")
+    S["labour_double"] = st.number_input("Double Labour", value=S["labour_double"], key="lab2")
 
-    S["hinge_price"] = st.number_input("Hinge Price", value=S["hinge_price"])
-    S["hinges_per_door"] = st.number_input("Hinges per Door", value=S["hinges_per_door"])
-    S["screw_cost"] = st.number_input("Screw Cost", value=S["screw_cost"])
-    S["hinge_screws"] = st.number_input("Screws per Hinge", value=S["hinge_screws"])
+    S["hinge_price"] = st.number_input("Hinge Price", value=S["hinge_price"], key="hingep")
+    S["hinges_per_door"] = st.number_input("Hinges per Door", value=S["hinges_per_door"], key="hingecount")
+    S["screw_cost"] = st.number_input("Screw Cost", value=S["screw_cost"], key="scr_cost")
+    S["hinge_screws"] = st.number_input("Screws per Hinge", value=S["hinge_screws"], key="scr_hinges")
 
-    S["minimum_frame_charge"] = st.number_input("Minimum Charge", value=S["minimum_frame_charge"])
+    S["minimum_frame_charge"] = st.number_input("Minimum Charge", value=S["minimum_frame_charge"], key="mincharge")
 
 
 
@@ -243,6 +241,25 @@ with tab4:
         st.info("Add some doors first.")
     else:
         df = pd.DataFrame(st.session_state.rows)
+
+        # FRAME ORDER STRATEGY
+        st.subheader("Stock Length Strategy")
+        opt = st.radio(
+            "Choose Stock Availability:",
+            ["Mix (5.4 + 2.1)", "Only 5.4m", "Only 2.1m"],
+            horizontal=True
+        )
+
+        # Helper functions
+        def only_54(total):
+            count = math.ceil(total / 5.4)
+            waste = count * 5.4 - total
+            return count, waste
+
+        def only_21(total):
+            count = math.ceil(total / 2.1)
+            waste = count * 2.1 - total
+            return count, waste
 
         # TOTALS
         df["Leafs to Order"] = df.apply(lambda r: r["Qty"] * (1 if r["Form"] == "Single" else 2), axis=1)
@@ -268,24 +285,43 @@ with tab4:
             jamb = row["Jamb Type"]
             total_m = row["Total Frame (m)"]
 
-            f54, f21, fw = greedy_stock(total_m)
+            if opt == "Only 5.4m":
+                f54, waste = only_54(total_m)
+                st.write(f"### {jamb} — Only 5.4m")
+                st.write(f"5.4m lengths: **{f54}**")
+                st.write(f"Waste: **{waste:.2f} m**")
 
-            st.write(f"### {jamb}")
-            st.write(f"Total frame needed: **{total_m:.2f} m**")
-            st.write(f"5.4m lengths: **{f54}**")
-            st.write(f"2.1m lengths: **{f21}**")
-            st.write(f"Waste: **{fw:.2f} m**")
+            elif opt == "Only 2.1m":
+                f21, waste = only_21(total_m)
+                st.write(f"### {jamb} — Only 2.1m")
+                st.write(f"2.1m lengths: **{f21}**")
+                st.write(f"Waste: **{waste:.2f} m**")
+
+            else:
+                f54, f21, waste = greedy_stock(total_m)
+                st.write(f"### {jamb} — Mixed Stock")
+                st.write(f"5.4m: **{f54}**")
+                st.write(f"2.1m: **{f21}**")
+                st.write(f"Waste: **{waste:.2f} m**")
+
             st.write("---")
 
         # STOP TOTAL
-        st.subheader("Total Door Stop Ordering")
+        st.subheader("Total Door Stop Ordering (All Profiles Combined)")
         total_stop_m = df["Total Stop (m)"].sum()
-        s54, s21, sw = greedy_stock(total_stop_m)
 
-        st.write(f"Total stop needed: **{total_stop_m:.2f} m**")
-        st.write(f"5.4m lengths: **{s54}**")
-        st.write(f"2.1m lengths: **{s21}**")
-        st.write(f"Waste: **{sw:.2f} m**")
+        if opt == "Only 5.4m":
+            s54, sw = only_54(total_stop_m)
+            st.write(f"5.4m: **{s54}** — Waste: **{sw:.2f} m**")
+
+        elif opt == "Only 2.1m":
+            s21, sw = only_21(total_stop_m)
+            st.write(f"2.1m: **{s21}** — Waste: **{sw:.2f} m**")
+
+        else:
+            s54, s21, sw = greedy_stock(total_stop_m)
+            st.write(f"5.4m: **{s54}**, 2.1m: **{s21}**, Waste: **{sw:.2f} m**")
+
         st.write("---")
 
         # DOOR MAKEUP SUMMARY
