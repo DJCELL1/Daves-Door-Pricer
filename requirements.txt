@@ -7,3 +7,6 @@ python-dateutil==2.9.0
 pytz==2024.1
 requests==2.32.3
 watchdog==4.0.0
+pdfkit
+jinja2
+
