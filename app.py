@@ -296,7 +296,7 @@ with tabs[0]:
 # -------------------------------------------------------------
 # TAB 3 — PRODUCTION
 # -------------------------------------------------------------
-with tabs[2]:
+with tabs[1]:
     st.header("Production")
 
     if not st.session_state.rows:
@@ -329,7 +329,7 @@ with tabs[2]:
 # -------------------------------------------------------------
 # TAB 4 — SETTINGS
 # -------------------------------------------------------------
-with tabs[3]:
+with tabs[2]:
     st.header("Settings")
 
     if st.button("Reset Settings to Default"):
@@ -358,7 +358,7 @@ with tabs[3]:
 # -------------------------------------------------------------
 # TAB 5 — QUOTE LOOKUP
 # -------------------------------------------------------------
-with tabs[4]:
+with tabs[3]:
     st.header("Quote Lookup")
 
     qnums = get_existing_q_numbers()
