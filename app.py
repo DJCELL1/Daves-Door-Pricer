@@ -292,6 +292,12 @@ with tabs[0]:
         st.session_state.cust = ""
         st.session_state.proj = ""
         st.success("Reset complete.")
+# -------------------------------------------------------------
+# SUPER TAB — ESTIMATOR + LIVE QUOTE SUMMARY
+# -------------------------------------------------------------
+with tabs[1]:
+    st.header("Production")
+
 
 # =============================================================
 # MODULE 2 — PRODUCTION INPUT UI
