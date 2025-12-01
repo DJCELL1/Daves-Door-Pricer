@@ -22,14 +22,12 @@ def get_existing_q_numbers():
 def suggest_next_q():
     qnums = get_existing_q_numbers()
 
-    # No quotes? Start at Q0001
     if not qnums:
         return "Q0001"
 
     nums = []
     for q in qnums:
         try:
-            # Remove "Q" and convert to int
             nums.append(int(q.replace("Q", "")))
         except:
             pass
@@ -37,20 +35,28 @@ def suggest_next_q():
     if not nums:
         return "Q0001"
 
-    next_num = max(nums) + 1
-    return f"Q{next_num:04d}"
+    return f"Q{max(nums) + 1:04d}"
 
 
 def json_safe(o):
-    """Convert anything to JSON-safe types."""
+    # Prevent DataFrame ambiguity
+    if isinstance(o, pd.DataFrame):
+        return o.to_dict(orient="records")
+
+    if isinstance(o, pd.Series):
+        return o.to_dict()
+
     if isinstance(o, (np.integer, int)):
         return int(o)
 
     if isinstance(o, (np.floating, float)):
         return float(o)
 
-    if pd.isna(o):
-        return None
+    try:
+        if pd.isna(o):
+            return None
+    except:
+        pass
 
     if isinstance(o, pd.Timestamp):
         return o.strftime("%Y-%m-%d %H:%M:%S")
@@ -59,13 +65,10 @@ def json_safe(o):
 
 
 def make_json_safe(obj):
-    """Recursively turn dict/list DataFrames into JSON-safe versions."""
     if isinstance(obj, dict):
         return {k: make_json_safe(v) for k, v in obj.items()}
-
     if isinstance(obj, list):
         return [make_json_safe(v) for v in obj]
-
     return json_safe(obj)
 
 
@@ -83,7 +86,6 @@ def save_quote(qnum, customer, project, raw_rows, recalculated_rows, settings):
     }
 
     path = os.path.join(QUOTES_DIR, f"{qnum}.json")
-
     with open(path, "w") as f:
         json.dump(data, f, indent=4)
 
@@ -93,9 +95,7 @@ def save_quote(qnum, customer, project, raw_rows, recalculated_rows, settings):
 def load_quote(qnum):
     ensure_quotes_dir()
     path = os.path.join(QUOTES_DIR, f"{qnum}.json")
-
     if not os.path.exists(path):
         return None
-
     with open(path, "r") as f:
         return json.load(f)
