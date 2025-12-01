@@ -188,25 +188,80 @@ with tab1:
 
 
 # =============================================================
-# TAB 2 — QUOTE TABLE
+# TAB 2 — QUOTE TABLE (LIVE CALCULATIONS)
 # =============================================================
 with tab2:
     st.header("Quote Table")
 
     if st.session_state.rows:
         df = pd.DataFrame(st.session_state.rows)
+
         st.subheader(f"Customer: {st.session_state.cust}")
         st.subheader(f"Project: {st.session_state.proj}")
 
+        # Markup
         mk = st.number_input("Markup %", value=25)
-        df["Sell"] = df["Total Cost"] * (1 + mk / 100)
-        df["Margin %"] = (df["Sell"] - df["Total Cost"]) / df["Sell"] * 100
 
-        st.dataframe(df)
-        st.download_button("Download CSV", df.to_csv(index=False), "quote.csv")
+        # Recalculate every row with current settings
+        recalculated_rows = []
 
+        for _, r in df.iterrows():
+
+            # Leaf multiplier
+            leaf_mult = 1 if r["Form"] == "Single" else 2
+
+            # Recalculate frame + stop cost
+            frame_cost_val, frame_m, leg_mm, head_mm = frame_cost_and_pieces(
+                r["Height"],
+                r["Width"],
+                r["Jamb Type"],
+                r["Form"],
+                S["frame_prices"],
+                S["minimum_frame_charge"]
+            )
+
+            stop_cost_val = stop_cost(
+                frame_m,
+                S["frame_prices"]["26A 30x10 Door Stop"],
+                S["minimum_frame_charge"]
+            )
+
+            # Hinge + screw cost updated
+            hinge_cost = r["Hinges"] * S["hinge_price"]
+            screw_cost = r["Screws"] * S["screw_cost"]
+
+            labour = S["labour_single"] if r["Form"] == "Single" else S["labour_double"]
+
+            # Rebuild total cost
+            total = (
+                r["Leaf Cost"]
+                + frame_cost_val
+                + stop_cost_val
+                + labour
+                + hinge_cost
+                + screw_cost
+            )
+
+            # Attach recalculated data
+            recalculated_rows.append({
+                **r,
+                "Frame Cost": frame_cost_val,
+                "Stop Cost": stop_cost_val,
+                "Labour": labour,
+                "Hinge Cost": hinge_cost,
+                "Screw Cost": screw_cost,
+                "Total Cost": total,
+                "Sell": total * (1 + mk / 100),
+                "Margin %": ( (total * (1 + mk/100)) - total ) / (total * (1 + mk/100)) * 100
+            })
+
+        new_df = pd.DataFrame(recalculated_rows)
+
+        st.dataframe(new_df)
+        st.download_button("Download CSV", new_df.to_csv(index=False), "quote.csv")
     else:
         st.info("Add some doors first.")
+
 
 
 
