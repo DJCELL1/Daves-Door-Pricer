@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+
+# Streamlit
+.streamlit/
+
+# OS rubbish
+Thumbs.db
+.DS_Store
+
+# Virtual envs
+venv/
+env/
+
+# Excel/data dumps
+*.xlsx
+*.csv
+
+# Personal paths
+*.tmp
