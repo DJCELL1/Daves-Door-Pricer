@@ -14,13 +14,9 @@ from pdf.production_pdf import generate_production_pdf
 
 
 # ===================================================================
-# HINGE LOGIC (THE GOOD ONE)
+# HINGE LOGIC (CORRECT VERSION)
 # ===================================================================
 def calculate_hinges(height_mm, leaf_type, qty):
-    """
-    leaf_type: 'Single' or 'Double'
-    qty: number of doors of this type
-    """
     h = int(height_mm)
 
     per_leaf = 3 if h <= 1980 else 4
@@ -40,16 +36,10 @@ def render_production_tab(og_df, settings):
 
     st.header("🏭 Production")
 
-    # ---------------------------------------------------------------
-    # Validate estimator rows (og_df)
-    # ---------------------------------------------------------------
     if og_df.empty:
         st.warning("No doors in the quote. Add items first.")
         return
 
-    # ---------------------------------------------------------------
-    # Initialise session memory
-    # ---------------------------------------------------------------
     if "production_rows" not in st.session_state:
         st.session_state.production_rows = []
 
@@ -62,7 +52,7 @@ def render_production_tab(og_df, settings):
     for idx, row in og_df.iterrows():
         label = (
             f"Line {idx+1}: {row['SKU']} | "
-            f"{row['Leaf']} | "
+            f"{row['Leaf Type']} | "
             f"{row['Height']}h x {row['Width']}w | "
             f"{row['Form']}"
         )
@@ -76,7 +66,7 @@ def render_production_tab(og_df, settings):
     selected_idx = [i for lbl, i in line_labels if lbl == selected_label][0]
     chosen_row = og_df.loc[selected_idx]
 
-    # Extract jamb thickness from Jamb Type string
+    # Extract jamb thickness
     def extract_jamb_thickness(text):
         try:
             for t in str(text).split():
@@ -98,7 +88,7 @@ def render_production_tab(og_df, settings):
         if st.form_submit_button("Add Measurement"):
             new_row = {
                 "QuoteLine": selected_idx,
-                "LeafType": chosen_row["Leaf"],
+                "LeafType": chosen_row["Leaf Type"],
                 "LeafHeight": chosen_row["Height"],
                 "Width": chosen_row["Width"],
                 "Jamb Type": chosen_row["Jamb Type"],
@@ -127,7 +117,7 @@ def render_production_tab(og_df, settings):
             st.error(f"CSV import failed: {e}")
 
     # ---------------------------------------------------------------
-    # CURRENT MANUAL INPUTS TABLE
+    # CURRENT INPUT TABLE
     # ---------------------------------------------------------------
     st.markdown("### 📋 Current Production Measurements")
 
@@ -155,7 +145,6 @@ def render_production_tab(og_df, settings):
 
         final_height = g["FinalHeight"]
 
-        # Head + Legs
         head_mm = calc_head_length(
             width=g["Width"],
             jamb_thickness=g["JambThickness"],
@@ -170,12 +159,9 @@ def render_production_tab(og_df, settings):
             qty=g["Qty"]
         )
 
-        # -----------------------------------------------------------
-        # HINGES (THE GOOD PART)
-        # -----------------------------------------------------------
         hinge_qty = calculate_hinges(
             height_mm=final_height,
-            leaf_type=g["LeafType"],
+            leaf_type=g["Form"],
             qty=g["Qty"]
         )
 
@@ -199,7 +185,7 @@ def render_production_tab(og_df, settings):
     calc_df = pd.DataFrame(calc_rows)
 
     # ---------------------------------------------------------------
-    # REBUILD JAMB TYPE + PROFILE FROM ORIGINAL og_df
+    # JAMB PROFILE
     # ---------------------------------------------------------------
     calc_df = calc_df.merge(
         og_df[["Jamb Type"]],
@@ -208,10 +194,7 @@ def render_production_tab(og_df, settings):
         how="left"
     )
 
-    def extract_profile(j):
-        return str(j).split()[0]
-
-    calc_df["JambProfile"] = calc_df["Jamb Type"].apply(extract_profile)
+    calc_df["JambProfile"] = calc_df["Jamb Type"].apply(lambda j: str(j).split()[0])
 
     # ---------------------------------------------------------------
     # METRICS
@@ -226,19 +209,20 @@ def render_production_tab(og_df, settings):
     st.divider()
 
     # ==================================================================
-    # CLEAN 5-ITEM BOM SUMMARY
+    # CLEAN BOM SUMMARY
     # ==================================================================
     st.markdown("## 📦 Clean Material List (BOM)")
 
-    # 1. Door blanks
+    # DOOR BLANKS (FIXED)
     blanks = {}
     for _, r in og_df.iterrows():
-        key = f"{r['Height']}x{r['Width']} {r['Leaf']} {r['Thickness']}mm"
-        blanks[key] = blanks.get(key, 0) + r["Qty"]
+        leaves = 1 if r["Form"] == "Single" else 2
+        key = f"{r['Height']}x{r['Width']} {r['Leaf Type']} {r['Thickness']}mm"
+        blanks[key] = blanks.get(key, 0) + (r["Qty"] * leaves)
 
     blank_df = pd.DataFrame([{"Door Blank": k, "Qty": v} for k, v in blanks.items()])
 
-    # 2. Jambs (meters)
+    # Jambs
     jambs = (
         calc_df.groupby("JambProfile")["Total Frame (m)"]
         .sum()
@@ -246,23 +230,22 @@ def render_production_tab(og_df, settings):
         .rename(columns={"Total Frame (m)": "Meters"})
     )
 
-    # 3. Stops
+    # Stops
     stop_df = pd.DataFrame([{
         "Stop Profile": "26A Stop",
         "Meters": round(calc_df["Total Stop (m)"].sum(), 2)
     }])
 
-    # 4. Hinges (FIXED)
+    # Hinges
     hinge_total = int(calc_df["Hinges"].sum())
     hinge_df = pd.DataFrame([{
         "Hinge": "Standard Hinges",
         "Qty": hinge_total
     }])
 
-    # 5. Screws
+    # Screws (6 per hinge)
     screw_total = hinge_total * 6
 
-    # DISPLAY
     st.subheader("🚪 Door Blanks")
     st.dataframe(blank_df, use_container_width=True)
 
@@ -292,8 +275,11 @@ def render_production_tab(og_df, settings):
     jamb_mode = jamb_strategy.replace("Mix (5.4 + 2.1)", "Mix")
     stop_mode = stop_strategy.replace("Mix (5.4 + 2.1)", "Mix")
 
-    # ---------- helper: build cut list ----------
+    # ---------------------------------------------------------------
+    # JAMB CUT LISTS
+    # ---------------------------------------------------------------
     def build_cut_list(piece_lengths_mm, stock_lengths_mm):
+
         pieces = sorted([int(p) for p in piece_lengths_mm if p > 0], reverse=True)
         stock_lengths_mm = sorted(stock_lengths_mm)
 
@@ -302,22 +288,14 @@ def render_production_tab(og_df, settings):
         for p in pieces:
             placed = False
             for stc in stocks:
-                remaining = stc["stock_length"] - stc["used"]
-                if p <= remaining:
+                if p <= (stc["stock_length"] - stc["used"]):
                     stc["cuts"].append(p)
                     stc["used"] += p
                     placed = True
                     break
 
             if not placed:
-                chosen_len = None
-                for L in stock_lengths_mm:
-                    if p <= L:
-                        chosen_len = L
-                        break
-                if chosen_len is None:
-                    chosen_len = max(stock_lengths_mm)
-
+                chosen_len = next((L for L in stock_lengths_mm if p <= L), max(stock_lengths_mm))
                 stocks.append({
                     "stock_length": chosen_len,
                     "cuts": [p],
@@ -332,27 +310,24 @@ def render_production_tab(og_df, settings):
                 "Used (mm)": stc["used"],
                 "Waste (mm)": stc["stock_length"] - stc["used"]
             })
-
         return pd.DataFrame(rows)
 
-    # ---------- JAMB LENGTH BREAKDOWN ----------
     st.markdown("### Jamb Length Breakdown (by Profile)")
-
     jamb_summary2 = []
     for _, r in jambs.iterrows():
         total_m = r["Meters"]
-        c54, c21, waste = apply_stock_strategy(total_m, jamb_mode)
+        qty54, qty21, waste = apply_stock_strategy(total_m, jamb_mode)
         jamb_summary2.append({
             "Jamb Profile": r["JambProfile"],
             "Meters": total_m,
-            "5.4m Qty": c54,
-            "2.1m Qty": c21,
+            "5.4m Qty": qty54,
+            "2.1m Qty": qty21,
             "Waste (m)": waste
         })
+
     jamb_summary_df = pd.DataFrame(jamb_summary2)
     st.dataframe(jamb_summary_df, use_container_width=True)
 
-    # ---------- JAMB CUT LISTS ----------
     st.markdown("### Jamb Cut Lists (per Profile)")
 
     for prof, grp in calc_df.groupby("JambProfile"):
@@ -362,21 +337,22 @@ def render_production_tab(og_df, settings):
             leg = int(row["Leg (mm)"])
             head = int(row["Head (mm)"])
             pieces.extend([leg] * 2 * q)
-            pieces.extend([head] * 1 * q)
+            pieces.extend([head] * q)
 
-        if jamb_mode == "Only 5.4":
-            stock_lengths = [5400]
-        elif jamb_mode == "Only 2.1":
-            stock_lengths = [2100]
-        else:
-            stock_lengths = [2100, 5400]
+        stock_lengths = (
+            [5400] if jamb_mode == "Only 5.4"
+            else [2100] if jamb_mode == "Only 2.1"
+            else [2100, 5400]
+        )
 
         cut_df = build_cut_list(pieces, stock_lengths)
 
         st.markdown(f"#### {prof}")
         st.dataframe(cut_df, use_container_width=True)
 
-    # ---------- STOP CUT LIST ----------
+    # ---------------------------------------------------------------
+    # STOP CUT LIST
+    # ---------------------------------------------------------------
     st.markdown("### Stop Cut List")
 
     stop_pieces = []
@@ -385,16 +361,15 @@ def render_production_tab(og_df, settings):
         leg = int(row["Leg (mm)"])
         head = int(row["Head (mm)"])
         stop_pieces.extend([leg] * 2 * q)
-        stop_pieces.extend([head] * 1 * q)
+        stop_pieces.extend([head] * q)
 
-    if stop_mode == "Only 5.4":
-        stop_stock = [5400]
-    elif stop_mode == "Only 2.1":
-        stop_stock = [2100]
-    else:
-        stop_stock = [2100, 5400]
+    stop_stock_lengths = (
+        [5400] if stop_mode == "Only 5.4"
+        else [2100] if stop_mode == "Only 2.1"
+        else [2100, 5400]
+    )
 
-    stop_cut_df = build_cut_list(stop_pieces, stop_stock)
+    stop_cut_df = build_cut_list(stop_pieces, stop_stock_lengths)
     st.dataframe(stop_cut_df, use_container_width=True)
 
     st.divider()
