@@ -113,6 +113,19 @@ def save_quote(qnum, customer, project, raw_rows, recalculated_rows, settings):
         json.dump(data, f, indent=4)
 
     return True
+import os
+
+def delete_quote(qnum):
+    """
+    Deletes a saved quote JSON file.
+    Returns True if deleted, False if not found.
+    """
+    path = os.path.join("quotes", f"{qnum}.json")
+    if os.path.exists(path):
+        os.remove(path)
+        return True
+    return False
+
 
 
 # ============================================================

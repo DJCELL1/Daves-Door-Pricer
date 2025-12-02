@@ -1,0 +1,293 @@
+{
+    "q_number": "Q123457",
+    "customer": "Peter",
+    "project": "Eden Park",
+    "timestamp": "2025-12-02 14:08:18",
+    "raw_rows": [
+        {
+            "Customer": "Peter",
+            "Project": "Eden Park",
+            "SKU": "DDHC351980410PH18-92",
+            "Description": "DESCRIPTION NOT FOUND",
+            "Leaf": "PCM Hollow Core",
+            "Thickness": "35mm",
+            "Height": 1980,
+            "Width": 410,
+            "Form": "Single",
+            "Qty": 1,
+            "Jamb Type": "US14 92x18 Undershot",
+            "Unit Cost": 121.92,
+            "Total Cost": 121.92,
+            "Leaf Cost": 40.2,
+            "Frame Cost": 18.0,
+            "Stop Cost": 18.0,
+            "Labour": 15.0,
+            "Hinges": 3,
+            "Hinge Cost": 30.0,
+            "Screws": 18,
+            "Screw Cost": 0.72,
+            "Frame Length (m)": 4.458,
+            "Leg Length (mm)": 2003,
+            "Head Length (mm)": 452,
+            "Sell": 152.4,
+            "Margin %": 20.0
+        }
+    ],
+    "recalculated_rows": [
+        {
+            "Customer": "Peter",
+            "Project": "Eden Park",
+            "SKU": "DDHC351980410PH18-92",
+            "Description": "DESCRIPTION NOT FOUND",
+            "Leaf": "PCM Hollow Core",
+            "Thickness": "35mm",
+            "Height": 1980,
+            "Width": 410,
+            "Form": "Single",
+            "Qty": 1,
+            "Jamb Type": "US14 92x18 Undershot",
+            "Unit Cost": 121.92,
+            "Total Cost": 121.92,
+            "Leaf Cost": 40.2,
+            "Frame Cost": 18.0,
+            "Stop Cost": 18.0,
+            "Labour": 15.0,
+            "Hinges": 3,
+            "Hinge Cost": 30.0,
+            "Screws": 18,
+            "Screw Cost": 0.72,
+            "Frame Length (m)": 4.458,
+            "Leg Length (mm)": 2003,
+            "Head Length (mm)": 452,
+            "Sell": 152.4,
+            "Margin %": 20.0
+        }
+    ],
+    "settings": {
+        "prefix_map": {
+            "PCM Hollow Core": "DDHC",
+            "PMC Polycore": "DDPC",
+            "Solidcore": "DDSC"
+        },
+        "door_leaf_prices": {
+            "PCM Hollow Core": [
+                {
+                    "Height": "1980",
+                    "Width": "410-810",
+                    "35mm": 40.2,
+                    "38mm": 65.7
+                },
+                {
+                    "Height": "1980",
+                    "Width": "860",
+                    "35mm": 44.2,
+                    "38mm": 72.2
+                },
+                {
+                    "Height": "1980",
+                    "Width": "910",
+                    "35mm": 47.9,
+                    "38mm": 83.1
+                },
+                {
+                    "Height": "1980",
+                    "Width": "960",
+                    "35mm": 95.6,
+                    "38mm": 97.8
+                },
+                {
+                    "Height": "2200",
+                    "Width": "410-810",
+                    "35mm": 75.5,
+                    "38mm": 80.5
+                },
+                {
+                    "Height": "2200",
+                    "Width": "860",
+                    "35mm": 78.0,
+                    "38mm": 85.4
+                },
+                {
+                    "Height": "2200",
+                    "Width": "910",
+                    "35mm": 82.7,
+                    "38mm": 92.8
+                },
+                {
+                    "Height": "2400",
+                    "Width": "810",
+                    "35mm": 105.9,
+                    "38mm": 115.2
+                },
+                {
+                    "Height": "2400",
+                    "Width": "860",
+                    "35mm": 109.4,
+                    "38mm": 120.0
+                },
+                {
+                    "Height": "2400",
+                    "Width": "910",
+                    "35mm": 114.4,
+                    "38mm": 127.5
+                },
+                {
+                    "Height": "2400",
+                    "Width": "960",
+                    "35mm": 118.9,
+                    "38mm": 130.4
+                }
+            ],
+            "PMC Polycore": [
+                {
+                    "Height": "1980",
+                    "Width": "410-810",
+                    "35mm": 52.1,
+                    "38mm": 80.5
+                },
+                {
+                    "Height": "1980",
+                    "Width": "860",
+                    "35mm": 54.5,
+                    "38mm": 85.4
+                },
+                {
+                    "Height": "1980",
+                    "Width": "910",
+                    "35mm": 65.1,
+                    "38mm": 93.8
+                },
+                {
+                    "Height": "1980",
+                    "Width": "960",
+                    "35mm": 101.6,
+                    "38mm": 107.7
+                },
+                {
+                    "Height": "2200",
+                    "Width": "410-810",
+                    "35mm": 85.4,
+                    "38mm": 90.1
+                },
+                {
+                    "Height": "2200",
+                    "Width": "860",
+                    "35mm": 88.7,
+                    "38mm": 93.8
+                },
+                {
+                    "Height": "2200",
+                    "Width": "910",
+                    "35mm": 92.4,
+                    "38mm": 97.8
+                },
+                {
+                    "Height": "2400",
+                    "Width": "810",
+                    "35mm": 126.7,
+                    "38mm": 135.9
+                },
+                {
+                    "Height": "2400",
+                    "Width": "860",
+                    "35mm": 131.0,
+                    "38mm": 140.6
+                },
+                {
+                    "Height": "2400",
+                    "Width": "910",
+                    "35mm": 148.5,
+                    "38mm": 155.9
+                },
+                {
+                    "Height": "2400",
+                    "Width": "960",
+                    "35mm": 150.8,
+                    "38mm": 158.9
+                }
+            ],
+            "Solidcore": [
+                {
+                    "Height": "1980",
+                    "Width": "410-810",
+                    "35mm": 110.7,
+                    "38mm": 158.9
+                },
+                {
+                    "Height": "1980",
+                    "Width": "860",
+                    "35mm": 117.0,
+                    "38mm": 165.3
+                },
+                {
+                    "Height": "1980",
+                    "Width": "910",
+                    "35mm": 131.5,
+                    "38mm": 173.5
+                },
+                {
+                    "Height": "1980",
+                    "Width": "960",
+                    "35mm": 158.8,
+                    "38mm": 182.4
+                },
+                {
+                    "Height": "2200",
+                    "Width": "410-810",
+                    "35mm": 138.5,
+                    "38mm": 198.2
+                },
+                {
+                    "Height": "2200",
+                    "Width": "860",
+                    "35mm": 142.8,
+                    "38mm": 205.5
+                },
+                {
+                    "Height": "2200",
+                    "Width": "910",
+                    "35mm": 156.2,
+                    "38mm": 245.5
+                },
+                {
+                    "Height": "2400",
+                    "Width": "810",
+                    "35mm": 158.2,
+                    "38mm": 248.6
+                },
+                {
+                    "Height": "2400",
+                    "Width": "860",
+                    "35mm": 176.8,
+                    "38mm": 267.0
+                },
+                {
+                    "Height": "2400",
+                    "Width": "910",
+                    "35mm": 206.2,
+                    "38mm": 285.4
+                },
+                {
+                    "Height": "2400",
+                    "Width": "960",
+                    "35mm": 209.9,
+                    "38mm": 295.5
+                }
+            ]
+        },
+        "minimum_frame_charge": 18.0,
+        "labour_single": 15.0,
+        "labour_double": 30.0,
+        "hinge_price": 10.0,
+        "hinges_per_door": 2,
+        "screw_cost": 0.04,
+        "hinge_screws": 4,
+        "frame_prices": {
+            "US14 92x18 Undershot": 3.15,
+            "US13 112x18 Undershot": 3.83,
+            "US18 118x18 Undershot": 5.48,
+            "DG1 136x30 Double Grooved": 7.68,
+            "26A 30x10 Door Stop": 0.83
+        }
+    }
+}
