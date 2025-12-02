@@ -159,11 +159,9 @@ def render_production_tab(og_df, settings):
             qty=g["Qty"]
         )
 
-        hinge_qty = calculate_hinges(
-            height_mm=final_height,
-            leaf_type=g["Form"],
-            qty=g["Qty"]
-        )
+        # Use estimator hinge count multiplied by Qty
+        est_row = og_df.loc[g["QuoteLine"]]
+        hinge_qty = int(est_row["Hinges"]) * int(g["Qty"])
 
         calc_rows.append({
             "QuoteLine": g["QuoteLine"],
