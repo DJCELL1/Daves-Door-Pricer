@@ -40,7 +40,7 @@ def get_default_settings():
                 ["2400", "960", 150.80, 158.90],
             ], columns=["Height", "Width", "35mm", "38mm"]),
 
-            "Solidcore": pd.DataDataFrame([
+            "Solidcore": pd.DataFrame([
                 ["1980", "410-810", 110.70, 158.90],
                 ["1980", "860", 117.00, 165.30],
                 ["1980", "910", 131.50, 173.50],
@@ -68,7 +68,7 @@ def get_default_settings():
         "hinge_screws": 6,
         "screw_cost": 0.04,
 
-        # STOP PRICE (NO MINIMUM)
+        # Stop Price (NOT MINIMUM CHARGED)
         "stop_price": 0.83,
 
         # ========================
