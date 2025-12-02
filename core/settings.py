@@ -61,10 +61,10 @@ def get_default_settings():
         "minimum_frame_charge": 18.0,
         "labour_single": 15,
         "labour_double": 30,
-        "hinge_price": 10.0,
-        "hinges_per_door": 2,
+        "hinge_price": 1.32,
+        "hinges_per_door": 3,
         "screw_cost": 0.04,
-        "hinge_screws": 4,
+        "hinge_screws": 6,
 
         # ========================
         # FRAME PRICES
@@ -74,6 +74,6 @@ def get_default_settings():
             "US13 112x18 Undershot": 3.83,
             "US18 118x18 Undershot": 5.48,
             "DG1 136x30 Double Grooved": 7.68,
-            "26A 30x10 Door Stop": 0.83,
-        }
-    }
+        },
+
+        "stop_price": 0.83,
