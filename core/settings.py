@@ -40,7 +40,7 @@ def get_default_settings():
                 ["2400", "960", 150.80, 158.90],
             ], columns=["Height", "Width", "35mm", "38mm"]),
 
-            "Solidcore": pd.DataFrame([
+            "Solidcore": pd.DataDataFrame([
                 ["1980", "410-810", 110.70, 158.90],
                 ["1980", "860", 117.00, 165.30],
                 ["1980", "910", 131.50, 173.50],
@@ -61,13 +61,18 @@ def get_default_settings():
         "minimum_frame_charge": 18.0,
         "labour_single": 15,
         "labour_double": 30,
-        "hinge_price": 1.32,
+
+        # Hardware
+        "hinge_price": 10.0,
         "hinges_per_door": 3,
-        "screw_cost": 0.04,
         "hinge_screws": 6,
+        "screw_cost": 0.04,
+
+        # STOP PRICE (NO MINIMUM)
+        "stop_price": 0.83,
 
         # ========================
-        # FRAME PRICES
+        # FRAME PRICES (NO STOP HERE)
         # ========================
         "frame_prices": {
             "US14 92x18 Undershot": 3.15,
@@ -75,5 +80,4 @@ def get_default_settings():
             "US18 118x18 Undershot": 5.48,
             "DG1 136x30 Double Grooved": 7.68,
         },
-
-        "stop_price": 0.83,
+    }
