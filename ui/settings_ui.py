@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import copy
 from core.settings import get_default_settings
 
@@ -13,8 +14,28 @@ def render_settings_tab():
 
     if st.button("Reset to Default"):
         st.session_state.settings = copy.deepcopy(get_default_settings())
-        st.session_state.clear()  # full widget reset
+        st.session_state.clear()
         st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ------------------------------------------------------------
+    # DOOR LEAF PRICES (NEW)
+    # ------------------------------------------------------------
+    st.markdown('<div class="hdl-card">', unsafe_allow_html=True)
+    st.markdown('<div class="hdl-section-title">Door Leaf Prices</div>', unsafe_allow_html=True)
+
+    for leaf_type, df in S["door_leaf_prices"].items():
+        st.markdown(f"### {leaf_type}")
+
+        edited = st.data_editor(
+            df,
+            use_container_width=True,
+            num_rows="dynamic",
+            key=f"leaf_edit_{leaf_type}"
+        )
+
+        S["door_leaf_prices"][leaf_type] = edited
 
     st.markdown('</div>', unsafe_allow_html=True)
 
