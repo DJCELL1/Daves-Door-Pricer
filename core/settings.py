@@ -63,7 +63,7 @@ def get_default_settings():
         "labour_double": 30,
 
         # Hardware
-        "hinge_price": 10.0,
+        "hinge_price": 1.32,
         "hinges_per_door": 3,
         "hinge_screws": 6,
         "screw_cost": 0.04,
