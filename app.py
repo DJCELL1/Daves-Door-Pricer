@@ -80,37 +80,37 @@ if st.session_state.pending_load is not None:
 
 
 # =====================================
-# TABS
+# TABS (SETTINGS FIRST NOW)
 # =====================================
 
 tabs = st.tabs([
+    "Settings",
     "Estimator + Quote Table",
     "Production",
-    "Settings",
     "Quote Lookup",
 ])
 
 
 # =====================================
-# TAB 1 — ESTIMATOR
+# TAB 1 — SETTINGS
 # =====================================
 with tabs[0]:
+    render_settings_tab()
+
+
+# =====================================
+# TAB 2 — ESTIMATOR + QUOTE TABLE
+# =====================================
+with tabs[1]:
     render_estimator_tab(HINGE_DF)
 
 
 # =====================================
-# TAB 2 — PRODUCTION
-# =====================================
-with tabs[1]:
-    og_df = pd.DataFrame(st.session_state.rows)
-    render_production_tab(og_df, S)
-
-
-# =====================================
-# TAB 3 — SETTINGS
+# TAB 3 — PRODUCTION
 # =====================================
 with tabs[2]:
-    render_settings_tab()
+    og_df = pd.DataFrame(st.session_state.rows)
+    render_production_tab(og_df, S)
 
 
 # =====================================
@@ -118,3 +118,4 @@ with tabs[2]:
 # =====================================
 with tabs[3]:
     render_quote_lookup_tab()
+
