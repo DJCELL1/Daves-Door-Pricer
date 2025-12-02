@@ -81,7 +81,7 @@ def render_production_tab(og_df, settings):
     # ---------------------------------------------------------------
     with st.form("add_measurement_form", clear_on_submit=True):
 
-        undercut = st.number_input("Undercut (mm)", min_value=0, value=10)
+        undercut = st.number_input("Undercut (mm)", min_value=0, value=20)
         floor = st.number_input("Finished Floor Build-up (mm)", min_value=0, value=0)
         qty = st.number_input("Qty", min_value=1, value=1)
 
