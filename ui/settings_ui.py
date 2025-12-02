@@ -49,33 +49,44 @@ def render_settings_tab():
         "Double Door Labour Cost",
         value=float(S["labour_double"]),
         step=0.10
-    ) 
+    )
 
     st.markdown('</div>', unsafe_allow_html=True)
 
     # ------------------------------------------------------------
-    # HARDWARE COSTS
+    # HARDWARE COSTS — FIXED DEFAULTS: 3 HINGES/DOOR, 6 SCREWS/HINGE
     # ------------------------------------------------------------
     st.markdown('<div class="hdl-card">', unsafe_allow_html=True)
     st.markdown('<div class="hdl-section-title">Hardware Costs</div>', unsafe_allow_html=True)
 
+    # Hinge PRICE stays editable
     S["hinge_price"] = st.number_input(
         "Hinge Price",
         value=S["hinge_price"],
         step=0.10
     )
+
+    # Hinges per door — force default = 3
     S["hinges_per_door"] = st.number_input(
-        "Hinges per Door",
-        value=S["hinges_per_door"]
+        "Hinges per Door (default 3)",
+        value=3,
+        step=1,
+        min_value=1
     )
+
+    # Screw price stays editable
     S["screw_cost"] = st.number_input(
         "Screw Cost",
         value=S["screw_cost"],
         step=0.01
     )
+
+    # Screws per hinge — force default = 6
     S["hinge_screws"] = st.number_input(
-        "Screws per Hinge",
-        value=S["hinge_screws"]
+        "Screws per Hinge (default 6)",
+        value=6,
+        step=1,
+        min_value=1
     )
 
     st.markdown('</div>', unsafe_allow_html=True)
