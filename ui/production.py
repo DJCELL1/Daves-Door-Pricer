@@ -260,7 +260,7 @@ def render_production_tab(og_df, settings):
     }])
 
     # 5. Screws
-    screw_total = hinge_total * 4
+    screw_total = hinge_total * 6
 
     # DISPLAY
     st.subheader("🚪 Door Blanks")
