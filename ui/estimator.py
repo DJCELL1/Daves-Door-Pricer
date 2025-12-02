@@ -105,8 +105,8 @@ def render_estimator_tab(HINGE_DF):
 
         stop_cost_val = stop_cost(
             frame_m,
-            S["frame_prices"]["26A 30x10 Door Stop"],
-            S["minimum_frame_charge"]
+            S["stop_price"],
+            0   # NO MINIMUM FOR STOP
         )
 
         labour = S["labour_single"] if form == "Single" else S["labour_double"]
