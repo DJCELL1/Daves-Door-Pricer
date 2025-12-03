@@ -1,27 +1,48 @@
 from reportlab.platypus import (
     SimpleDocTemplate, Table, TableStyle,
-    Paragraph, Spacer, Image
+    Paragraph, Spacer, PageBreak, Image
 )
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import landscape, A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from io import BytesIO
 import os
 
+CHECKED = "☑"
+UNCHECKED = "☐"
 
-def generate_production_pdf(data, jamb_summary, stop_summary):
-    """
-    Fully styled HDL PDF — works on Streamlit Cloud.
-    """
+HDL_GREY = colors.HexColor("#57585A")
+LOGO_PATH = "assets/hdl_logo.png"
 
-    # ---------------------------------------------------
-    # PDF BUFFER
-    # ---------------------------------------------------
+
+def add_logo_and_title(story, title, h1):
+    if os.path.exists(LOGO_PATH):
+        img = Image(LOGO_PATH, width=45*mm, height=15*mm)
+        story.append(img)
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(f"<b>{title}</b>", h1))
+    story.append(Spacer(1, 10))
+
+
+def generate_production_pdf(
+    data,
+    jamb_summary,
+    stop_summary,
+    blanks_df=None,
+    hinge_qty=None,
+    screw_qty=None,
+    cutlists=None,
+    job_name="Job Name",
+    customer="Customer",
+    qnum="Q-XXXX"
+):
+
     buffer = BytesIO()
+
     doc = SimpleDocTemplate(
         buffer,
-        pagesize=A4,
+        pagesize=landscape(A4),
         rightMargin=20,
         leftMargin=20,
         topMargin=20,
@@ -30,118 +51,219 @@ def generate_production_pdf(data, jamb_summary, stop_summary):
 
     styles = getSampleStyleSheet()
 
-    h1 = ParagraphStyle(
-        name="Heading1",
+    title_style = ParagraphStyle(
+        "Title",
         parent=styles["Heading1"],
-        fontSize=16,
-        textColor="#57585A",
-        spaceAfter=10,
-        leading=18
+        fontSize=20,
+        textColor=HDL_GREY,
+        spaceAfter=6,
     )
 
     h2 = ParagraphStyle(
-        name="Heading2",
+        "Heading2",
         parent=styles["Heading2"],
-        fontSize=13,
-        textColor="#57585A",
-        spaceAfter=6,
-        leading=15
+        fontSize=14,
+        textColor=HDL_GREY,
+        spaceAfter=6
     )
 
     normal = ParagraphStyle(
-        name="NormalHDL",
+        "Normal",
         parent=styles["Normal"],
         fontSize=9,
-        textColor="#333333"
+        textColor="#333333",
+        leading=12
     )
 
     story = []
 
-    # ---------------------------------------------------
-    # HEADER WITH LOGO
-    # ---------------------------------------------------
-    logo_path = os.path.join("pdf", "assets", "hdl_logo.png")
-    if os.path.exists(logo_path):
-        img = Image(logo_path, width=60*mm, height=20*mm)
-        story.append(img)
-        story.append(Spacer(1, 12))
-    else:
-        story.append(Paragraph("<b>Hardware Direct</b>", h1))
-        story.append(Spacer(1, 12))
+    # ============================================================
+    # PAGE 1 — DOOR LIST
+    # ============================================================
 
-    # ---------------------------------------------------
-    # TITLE
-    # ---------------------------------------------------
-    story.append(Paragraph("<b>Production Report</b>", h1))
+    add_logo_and_title(story, f"{job_name} — Door List", title_style)
+
+    story.append(Paragraph(f"Customer: <b>{customer}</b>", normal))
+    story.append(Paragraph(f"Quote #: <b>{qnum}</b>", normal))
     story.append(Spacer(1, 12))
 
-    # ---------------------------------------------------
-    # SECTION: PRODUCTION DATA
-    # ---------------------------------------------------
-    story.append(Paragraph("<b>Production Data</b>", h2))
-    story.append(Spacer(1, 6))
+    door_table_data = [["Door #", "Form", "Jamb Type", "Leg (mm)", "Head (mm)", "Measured"]]
 
-    prod_table_data = [list(data.columns)] + data.values.tolist()
+    for _, r in data.iterrows():
+        measured = CHECKED if r.get("Measured", False) else UNCHECKED
+        door_table_data.append([
+            r.get("Door #", ""),
+            r.get("Form", ""),
+            r.get("JambType", ""),
+            r.get("Leg (mm)", ""),
+            r.get("Head (mm)", ""),
+            measured
+        ])
 
-    prod_table = Table(prod_table_data, repeatRows=1)
-    prod_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#57585A")),
+    door_table = Table(door_table_data, repeatRows=1)
+    door_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), HDL_GREY),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 9),
         ("FONT", (0, 1), (-1, -1), "Helvetica", 8),
         ("GRID", (0, 0), (-1, -1), 0.3, colors.grey),
-        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
     ]))
 
-    story.append(prod_table)
-    story.append(Spacer(1, 18))
+    story.append(door_table)
+    story.append(PageBreak())
 
-    # ---------------------------------------------------
-    # SECTION: JAMB SUMMARY
-    # ---------------------------------------------------
-    story.append(Paragraph("<b>Jamb Summary</b>", h2))
-    story.append(Spacer(1, 6))
+    # ============================================================
+    # PAGE 2 — SUMMARY OF PARTS
+    # ============================================================
 
-    if not jamb_summary.empty:
-        js_data = [list(jamb_summary.columns)] + jamb_summary.values.tolist()
-        js_table = Table(js_data, repeatRows=1)
-        js_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#57585A")),
+    add_logo_and_title(story, f"{job_name} — Summary of Parts", title_style)
+
+    story.append(Paragraph("<b>Door Blanks</b>", h2))
+
+    if blanks_df is not None and not blanks_df.empty:
+        bd = [list(blanks_df.columns)] + blanks_df.values.tolist()
+        t = Table(bd)
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), HDL_GREY),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 9),
-            ("FONT", (0, 1), (-1, -1), "Helvetica", 8),
             ("GRID", (0, 0), (-1, -1), 0.3, colors.grey),
         ]))
-        story.append(js_table)
-        story.append(Spacer(1, 18))
+        story.append(t)
     else:
-        story.append(Paragraph("No jamb summary available.", normal))
-        story.append(Spacer(1, 12))
+        story.append(Paragraph("No door blanks found.", normal))
 
-    # ---------------------------------------------------
-    # SECTION: STOP SUMMARY
-    # ---------------------------------------------------
-    story.append(Paragraph("<b>Stop Summary</b>", h2))
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 12))
 
-    if not stop_summary.empty:
-        st_data = [list(stop_summary.columns)] + stop_summary.values.tolist()
-        st_table = Table(st_data, repeatRows=1)
-        st_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#57585A")),
+    story.append(Paragraph("<b>Jambs (Stock Summary)</b>", h2))
+
+    if jamb_summary is not None and not jamb_summary.empty:
+        js = [list(jamb_summary.columns)] + jamb_summary.values.tolist()
+        jtab = Table(js)
+        jtab.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), HDL_GREY),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 9),
-            ("FONT", (0, 1), (-1, -1), "Helvetica", 8),
             ("GRID", (0, 0), (-1, -1), 0.3, colors.grey),
         ]))
-        story.append(st_table)
-    else:
-        story.append(Paragraph("No stop summary available.", normal))
+        story.append(jtab)
 
-    # ---------------------------------------------------
-    # BUILD PDF
-    # ---------------------------------------------------
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("<b>Stops</b>", h2))
+
+    if stop_summary is not None and not stop_summary.empty:
+        ss = [list(stop_summary.columns)] + stop_summary.values.tolist()
+        stab = Table(ss)
+        stab.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), HDL_GREY),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("GRID", (0, 0), (-1, -1), 0.3, colors.grey),
+        ]))
+        story.append(stab)
+
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("<b>Hardware</b>", h2))
+
+    hw_data = [["Item", "Qty"], ["Hinges", hinge_qty or 0], ["Screws", screw_qty or 0]]
+
+    hw_table = Table(hw_data)
+    hw_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), HDL_GREY),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("GRID", (0, 0), (-1, -1), 0.3, colors.grey),
+    ]))
+
+    story.append(hw_table)
+    story.append(PageBreak())
+
+    # ============================================================
+    # PAGE 3 — CUT LISTS
+    # ============================================================
+
+    add_logo_and_title(story, f"{job_name} — Cut Lists", title_style)
+
+    if cutlists:
+        for label, df in cutlists.items():
+            story.append(Paragraph(f"<b>{label}</b>", h2))
+            if df is not None and not df.empty:
+                ct = [list(df.columns)] + df.values.tolist()
+                tbl = Table(ct)
+                tbl.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), HDL_GREY),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("GRID", (0, 0), (-1, -1), 0.3, colors.grey),
+                ]))
+                story.append(tbl)
+                story.append(Spacer(1, 14))
+            else:
+                story.append(Paragraph("No cuts found for this profile.", normal))
+                story.append(Spacer(1, 10))
+
+    story.append(PageBreak())
+
+    # ============================================================
+    # PAGE 4+ — ASSEMBLY PLANS
+    # ============================================================
+
+    add_logo_and_title(story, f"{job_name} — Assembly Plans", title_style)
+
+    for _, row in data.iterrows():
+        door_num = row.get("Door #")
+        form = row.get("Form")
+        leaf_type = row.get("LeafType")
+        leaf_height = row.get("LeafHeight")
+        leaf_thickness = row.get("LeafThickness")
+
+        # Full width
+        leaf_width = int(row.get("Width", 0))
+        leaves = 2 if form == "Double" else 1
+
+        jamb_type = row.get("JambType")
+        leg = row.get("Leg (mm)")
+        head = row.get("Head (mm)")
+
+        hinges = row.get("Hinges", 0)
+        screws = hinges * 6
+        measured = CHECKED if row.get("Measured", False) else UNCHECKED
+
+        story.append(Paragraph(f"<b>Door {door_num} – Assembly Plan</b>", h2))
+
+        story.append(Paragraph(
+            f"""
+            <b>Leaf Makeup</b><br/>
+            • Type: {leaf_type}<br/>
+            • Leaf Height: {leaf_height} mm<br/>
+            • Leaf Width: {leaf_width} mm<br/>
+            • Thickness: {leaf_thickness} mm<br/>
+            • Leaves: {leaves}<br/><br/>
+
+            <b>Frame</b><br/>
+            • Jamb Type: {jamb_type}<br/>
+            • Leg Lengths: {leg} mm ×2<br/>
+            • Head Length: {head} mm<br/><br/>
+
+            <b>Stops</b><br/>
+            • Stop Lengths: {leg} mm ×2<br/>
+            • Head Stop Length: {head} mm<br/><br/>
+
+            <b>Hardware</b><br/>
+            • Hinges: {hinges}<br/>
+            • Screws: {screws}<br/><br/>
+
+            <b>Measured:</b> {measured}
+            """,
+            normal
+        ))
+
+        story.append(Spacer(1, 6))
+        story.append(Paragraph("<hr/>", normal))
+        story.append(Spacer(1, 8))
+
+    # ============================================================
+    # FINISH
+    # ============================================================
+
     doc.build(story)
     pdf = buffer.getvalue()
     buffer.close()

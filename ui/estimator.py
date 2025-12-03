@@ -5,6 +5,10 @@ from core.pricing import leaf_price, frame_cost_and_pieces, stop_cost
 from core.sku import create_sku
 from core.save_load import save_quote, suggest_next_q
 
+# NEW IMPORTS FOR DOOR ORDER FORM
+from pdf.door_order_export import generate_order_form
+from ui.helpers import build_door_order_rows
+
 
 def render_estimator_tab(HINGE_DF):
     S = st.session_state.settings
@@ -46,7 +50,7 @@ def render_estimator_tab(HINGE_DF):
         qty = st.number_input("Qty (Sets)", min_value=1, value=1)
 
     # ---------------------------------------------------------
-    # HINGE LOOKUP (by height/width)
+    # HINGE LOOKUP
     # ---------------------------------------------------------
     hm = HINGE_DF[(HINGE_DF["Height"] == height) & (HINGE_DF["Width"] == width)]
     if not hm.empty:
@@ -61,7 +65,7 @@ def render_estimator_tab(HINGE_DF):
     desc = desc_row.iloc[0]["Description"] if not desc_row.empty else "DESCRIPTION NOT FOUND"
 
     # ---------------------------------------------------------
-    # ADD LINE (POA SAFE)
+    # ADD LINE
     # ---------------------------------------------------------
     if st.button("Add Line"):
 
@@ -74,7 +78,6 @@ def render_estimator_tab(HINGE_DF):
             thickness
         )
 
-        # POA
         if leaf_cost_val is None and poa_key not in st.session_state:
             st.warning(
                 f"❗ No price found for {leaf_type} {height}x{width} ({thickness}). Enter POA."
@@ -93,9 +96,7 @@ def render_estimator_tab(HINGE_DF):
             leaf_cost_val = user_poa
             del st.session_state[poa_key]
 
-        # ---------------------------------------------------------
-        # COST CALCULATION
-        # ---------------------------------------------------------
+        # COST CALCS
         leaves_per_set = 1 if form == "Single" else 2
 
         frame_cost_val, frame_m, leg_mm, head_mm = frame_cost_and_pieces(
@@ -106,20 +107,17 @@ def render_estimator_tab(HINGE_DF):
         stop_cost_val = stop_cost(
             frame_m,
             S["stop_price"],
-            0   # NO MINIMUM FOR STOP
+            0
         )
 
         labour = S["labour_single"] if form == "Single" else S["labour_double"]
 
-        # Hinges
         hinge_count = hinges_per_leaf * leaves_per_set
         hinge_cost_val = hinge_count * S["hinge_price"]
 
-        # Screws (NEW: 6 PER HINGE)
         screw_count = hinge_count * 6
         screw_cost_val = screw_count * S["screw_cost"]
 
-        # Unit cost
         unit_cost = (
             leaf_cost_val * leaves_per_set
             + frame_cost_val
@@ -131,9 +129,7 @@ def render_estimator_tab(HINGE_DF):
 
         total_cost = unit_cost * qty
 
-        # ---------------------------------------------------------
         # BUILD ROW
-        # ---------------------------------------------------------
         row = {
             "Customer": st.session_state.cust,
             "Project": st.session_state.proj,
@@ -170,7 +166,7 @@ def render_estimator_tab(HINGE_DF):
         st.success("Door line added!")
 
     # ---------------------------------------------------------
-    # SUMMARY
+    # SUMMARY + COSTING
     # ---------------------------------------------------------
     if st.session_state.rows:
 
@@ -200,7 +196,7 @@ def render_estimator_tab(HINGE_DF):
         with st.expander("Full Breakdown (Detailed Costs)", expanded=False):
             st.dataframe(df, height=400)
 
-        # SAVE
+        # SAVE QUOTE
         qnum = st.text_input("Quote Number", value=suggest_next_q())
 
         if st.button("Save Quote 💾"):
@@ -216,6 +212,42 @@ def render_estimator_tab(HINGE_DF):
 
         # CSV EXPORT
         st.download_button("Download CSV", df.to_csv(index=False), "quote.csv")
+
+        # ---------------------------------------------------------
+        # NEW: DOOR ORDER FORM EXPORT
+        # ---------------------------------------------------------
+        st.subheader("📄 Door Order Form")
+
+        if st.button("Download HD Door Order Form"):
+            doors = build_door_order_rows(df)
+
+            details = {
+                "quote": qnum,
+                "project": st.session_state.proj,
+                "address": "",
+            }
+
+            contractor = {
+                "contractor": "",
+                "contact": "",
+                "phone": "",
+                "email": "",
+                "onsite": "",
+            }
+
+            filebytes = generate_order_form(
+                "Door Order template.xlsx",
+                details,
+                contractor,
+                doors
+            )
+
+            st.download_button(
+                "Download HD Door Order Form",
+                data=filebytes,
+                file_name="HD_Door_Order_Form.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
     # ---------------------------------------------------------
     # RESET

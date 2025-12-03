@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 
 from core.production_helpers import (
-    parse_csv_measurements,
-    group_production_rows,
     calc_head_length,
     calc_frame_lengths,
     apply_stock_strategy
@@ -11,216 +9,286 @@ from core.production_helpers import (
 
 from ui.production_template import generate_production_template
 from pdf.production_pdf import generate_production_pdf
+from pdf.door_order_import import read_order_form
 
 
 # ===================================================================
-# HINGE LOGIC (CORRECT VERSION)
+# HELPERS
 # ===================================================================
-def calculate_hinges(height_mm, leaf_type, qty):
-    h = int(height_mm)
 
-    per_leaf = 3 if h <= 1980 else 4
+def expand_quote_rows(og_df):
+    """Build rows for measurement editor."""
+    doors = []
+    door_counter = 1
 
-    if str(leaf_type).lower() == "double":
-        per_door = per_leaf * 2
-    else:
-        per_door = per_leaf
+    for idx, row in og_df.iterrows():
+        sets = int(row["Qty"])
+        for _ in range(sets):
+            doors.append({
+                "Door #": str(door_counter),
+                "QuoteLine": idx,
+                "SKU": row["SKU"],
+                "LeafType": row["Leaf Type"],
+                "Height": row["Height"],
+                "Width": row["Width"],
+                "JambType": row["Jamb Type"],
+                "Form": row["Form"],
+                "Undercut": 20,
+                "FinishedFloorHeight": 0,
+                "Measured": False,
+            })
+            door_counter += 1
 
-    return per_door * qty
+    return pd.DataFrame(doors)
+
+
+def import_xlsx_measurements(xlsx):
+    """Imports XLSX from measurement template."""
+    try:
+        df = pd.read_excel(xlsx)
+        df.columns = [c.strip() for c in df.columns]
+
+        required = ["Door Number", "Undercut (mm)", "Finished Floor Height (mm)"]
+        for r in required:
+            if r not in df.columns:
+                raise ValueError(f"Missing column: {r}")
+
+        out = pd.DataFrame({
+            "Door #": df["Door Number"].astype(str),
+            "Undercut": df["Undercut (mm)"],
+            "FinishedFloorHeight": df["Finished Floor Height (mm)"],
+            "Measured": True
+        })
+
+        return out.dropna(subset=["Door #"])
+
+    except Exception as e:
+        raise ValueError(f"Import failed: {e}")
+
+
+def _extract_jamb_thickness(text):
+    """Extract the '18' or '30' from 92x18 etc."""
+    try:
+        for t in str(text).split():
+            if "x" in t:
+                return float(t.split("x")[-1])
+    except:
+        return 18
+    return 18
+
+
+# CLEAN FIXED CUT LIST BUILDER
+def build_cut_list(piece_lengths, stock_lengths):
+    pieces = sorted([int(x) for x in piece_lengths], reverse=True)
+    stocks = sorted(stock_lengths)
+
+    bundles = []
+
+    for p in pieces:
+        placed = False
+
+        for b in bundles:
+            if p <= (b["stock"] - b["used"]):
+                b["cuts"].append(p)
+                b["used"] += p
+                placed = True
+                break
+
+        if not placed:
+            chosen = next((s for s in stocks if p <= s), max(stocks))
+            bundles.append({
+                "stock": chosen,
+                "cuts": [p],
+                "used": p
+            })
+
+    rows = []
+    for b in bundles:
+        rows.append({
+            "Stock Length (mm)": b["stock"],
+            "Cuts (mm)": " + ".join(str(c) for c in b["cuts"]),
+            "Used (mm)": b["used"],
+            "Waste (mm)": b["stock"] - b["used"]
+        })
+
+    return pd.DataFrame(rows)   # FIXED
 
 
 # ===================================================================
 # MAIN PRODUCTION TAB
 # ===================================================================
+
 def render_production_tab(og_df, settings):
 
     st.header("🏭 Production")
 
     if og_df.empty:
-        st.warning("No doors in the quote. Add items first.")
+        st.warning("No doors in this quote yet.")
         return
 
-    if "production_rows" not in st.session_state:
-        st.session_state.production_rows = []
+    # ============================================================
+    # EXPORT TEMPLATE
+    # ============================================================
 
-    # ---------------------------------------------------------------
-    # SELECT QUOTE LINE
-    # ---------------------------------------------------------------
-    st.subheader("📝 Enter Final Site Measurements")
-
-    line_labels = []
-    for idx, row in og_df.iterrows():
-        label = (
-            f"Line {idx+1}: {row['SKU']} | "
-            f"{row['Leaf Type']} | "
-            f"{row['Height']}h x {row['Width']}w | "
-            f"{row['Form']}"
-        )
-        line_labels.append((label, idx))
-
-    selected_label = st.selectbox(
-        "Select Quote Line",
-        [lbl for lbl, _ in line_labels]
+    st.markdown("## 📤 Download XLSX Measurement Template")
+    template = generate_production_template(
+        df_quote=og_df,
+        client=st.session_state.cust,
+        project=st.session_state.proj,
+        quote_number=settings.get("last_quote", "Q-XXXX"),
     )
 
-    selected_idx = [i for lbl, i in line_labels if lbl == selected_label][0]
-    chosen_row = og_df.loc[selected_idx]
+    st.download_button(
+        "Download XLSX Template",
+        data=template,
+        file_name="HDL_Measurement_Template.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        type="primary"
+    )
 
-    # Extract jamb thickness
-    def extract_jamb_thickness(text):
+    st.divider()
+
+    # ============================================================
+    # IMPORT DOOR ORDER FORM
+    # ============================================================
+
+    st.subheader("📥 Upload HD Door Order Form (.xlsx)")
+
+    uploaded_form = st.file_uploader("Upload Door Order Form (.xlsx)")
+
+    if uploaded_form:
         try:
-            for t in str(text).split():
-                if "x" in t:
-                    return float(t.split("x")[-1])
-        except:
-            return 0
-        return 0
+            imported_rows = read_order_form(uploaded_form)
+            imported_df = pd.DataFrame(imported_rows)
 
-    # ---------------------------------------------------------------
-    # MANUAL MEASUREMENT ENTRY
-    # ---------------------------------------------------------------
-    with st.form("add_measurement_form", clear_on_submit=True):
+            st.success("Door Order Form imported successfully.")
+            st.dataframe(imported_df, use_container_width=True)
 
-        undercut = st.number_input("Undercut (mm)", min_value=0, value=20)
-        floor = st.number_input("Finished Floor Build-up (mm)", min_value=0, value=0)
-        qty = st.number_input("Qty", min_value=1, value=1)
+            st.session_state.all_doors = imported_df.copy()
 
-        if st.form_submit_button("Add Measurement"):
-            new_row = {
-                "QuoteLine": selected_idx,
-                "LeafType": chosen_row["Leaf Type"],
-                "LeafHeight": chosen_row["Height"],
-                "Width": chosen_row["Width"],
-                "Jamb Type": chosen_row["Jamb Type"],
-                "JambThickness": extract_jamb_thickness(chosen_row["Jamb Type"]),
-                "Form": chosen_row["Form"],
-                "Undercut": undercut,
-                "FinishedFloorHeight": floor,
-                "Qty": qty
-            }
-            st.session_state.production_rows.append(new_row)
-            st.success("Measurement added.")
-
-    # ---------------------------------------------------------------
-    # CSV IMPORT
-    # ---------------------------------------------------------------
-    st.markdown("### 📥 Import Measurements from CSV")
-    csv_file = st.file_uploader("Upload CSV", type=["csv"])
-
-    if csv_file:
-        try:
-            csv_df = pd.read_csv(csv_file)
-            parsed = parse_csv_measurements(csv_df)
-            st.session_state.production_rows.extend(parsed.to_dict(orient="records"))
-            st.success("CSV imported.")
         except Exception as e:
-            st.error(f"CSV import failed: {e}")
+            st.error(f"❌ Error reading form: {e}")
+            return
 
-    # ---------------------------------------------------------------
-    # CURRENT INPUT TABLE
-    # ---------------------------------------------------------------
-    st.markdown("### 📋 Current Production Measurements")
+    # ============================================================
+    # FALLBACK IF NO UPLOAD
+    # ============================================================
 
-    prod_df = pd.DataFrame(st.session_state.production_rows)
-    if prod_df.empty:
-        st.info("No measurements added yet.")
-        return
+    if "all_doors" not in st.session_state or st.session_state.all_doors is None:
+        st.session_state.all_doors = expand_quote_rows(og_df)
 
-    st.dataframe(prod_df)
+    # ============================================================
+    # EDIT DOORS INLINE
+    # ============================================================
 
-    del_idx = st.number_input("Delete row index", min_value=0, max_value=len(prod_df)-1)
-    if st.button("Delete Selected Row"):
-        del st.session_state.production_rows[del_idx]
-        st.experimental_rerun()
+    st.subheader("🔧 Edit Door Measurements (Per Set)")
 
-    # ---------------------------------------------------------------
-    # GROUP + FRAME CALCULATIONS
-    # ---------------------------------------------------------------
+    st.session_state.all_doors["Door #"] = st.session_state.all_doors["Door #"].astype(str)
+
+    edited = st.data_editor(
+        st.session_state.all_doors,
+        use_container_width=True,
+        hide_index=True,
+        num_rows="dynamic",
+        key="door_editor",
+        column_config={
+            "Door #": st.column_config.TextColumn("Door #"),
+            "Measured": st.column_config.CheckboxColumn("Measured"),
+        }
+    )
+
+    st.session_state.all_doors = edited
+
+    st.divider()
+
+    # ============================================================
+    # PRODUCTION CALCULATIONS
+    # ============================================================
+
     st.markdown("## 🧮 Production Calculations")
 
-    grouped = group_production_rows(prod_df)
-
     calc_rows = []
-    for _, g in grouped.iterrows():
 
-        final_height = g["FinalHeight"]
+    for _, r in edited.iterrows():
+
+        final_h = int(r["Height"]) + 3 + int(r["Undercut"]) + int(r["FinishedFloorHeight"])
 
         head_mm = calc_head_length(
-            width=g["Width"],
-            jamb_thickness=g["JambThickness"],
-            form=g["Form"]
+            width=r["Width"],
+            jamb_thickness=_extract_jamb_thickness(r["JambType"]),
+            form=r["Form"]
         )
 
-        leg_mm = final_height
+        leg_mm = final_h
 
         per_frame_m, total_frame_m, total_stop_m = calc_frame_lengths(
             leg_mm=leg_mm,
             head_mm=head_mm,
-            qty=g["Qty"]
+            qty=1
         )
 
-        # Use estimator hinge count multiplied by Qty
-        est_row = og_df.loc[g["QuoteLine"]]
-        hinge_qty = int(est_row["Hinges"]) * int(g["Qty"])
+        hinge_qty = int(og_df.loc[r["QuoteLine"]]["Hinges"]) if "QuoteLine" in r else 0
 
         calc_rows.append({
-            "QuoteLine": g["QuoteLine"],
-            "LeafType": g["LeafType"],
-            "LeafHeight": g["LeafHeight"],
-            "FinalHeight": final_height,
-            "Width": g["Width"],
-            "Qty": g["Qty"],
-            "JambThickness": g["JambThickness"],
-            "Form": g["Form"],
+            "Door #": r["Door #"],
+            "QuoteLine": r.get("QuoteLine", 0),
+            "LeafType": r["LeafType"],
+            "LeafHeight": r["Height"],
+            "LeafThickness": og_df.loc[r.get("QuoteLine", 0)]["Thickness"],
+            "FinalHeight": final_h,
+            "Width": r["Width"],
+            "JambType": r["JambType"],
+            "Form": r["Form"],
             "Leg (mm)": leg_mm,
             "Head (mm)": head_mm,
-            "Frame/door (m)": per_frame_m,
             "Total Frame (m)": total_frame_m,
             "Total Stop (m)": total_stop_m,
-            "Hinges": hinge_qty
+            "Hinges": hinge_qty,
+            "Measured": r["Measured"],
         })
 
     calc_df = pd.DataFrame(calc_rows)
+    st.dataframe(calc_df, use_container_width=True)
 
-    # ---------------------------------------------------------------
-    # JAMB PROFILE
-    # ---------------------------------------------------------------
-    calc_df = calc_df.merge(
-        og_df[["Jamb Type"]],
-        left_on="QuoteLine",
-        right_index=True,
-        how="left"
-    )
+    st.divider()
 
-    calc_df["JambProfile"] = calc_df["Jamb Type"].apply(lambda j: str(j).split()[0])
+    # ============================================================
+    # SUMMARY METRICS
+    # ============================================================
 
-    # ---------------------------------------------------------------
-    # METRICS
-    # ---------------------------------------------------------------
     colA, colB, colC, colD = st.columns(4)
-
-    colA.metric("Total Doors", int(calc_df["Qty"].sum()))
+    colA.metric("Total Sets", len(calc_df))
     colB.metric("Total Frame (m)", f"{calc_df['Total Frame (m)'].sum():.2f}")
     colC.metric("Total Stop (m)", f"{calc_df['Total Stop (m)'].sum():.2f}")
     colD.metric("Total Hinges", int(calc_df["Hinges"].sum()))
 
     st.divider()
 
-    # ==================================================================
-    # CLEAN BOM SUMMARY
-    # ==================================================================
+    # ============================================================
+    # BOM — DOOR BLANKS
+    # ============================================================
+
     st.markdown("## 📦 Clean Material List (BOM)")
 
-    # DOOR BLANKS (FIXED)
-    blanks = {}
-    for _, r in og_df.iterrows():
-        leaves = 1 if r["Form"] == "Single" else 2
-        key = f"{r['Height']}x{r['Width']} {r['Leaf Type']} {r['Thickness']}mm"
-        blanks[key] = blanks.get(key, 0) + (r["Qty"] * leaves)
+    blanks = (
+        og_df.assign(
+            Leaves=og_df.apply(lambda r: 1 if r["Form"] == "Single" else 2, axis=1)
+        ).assign(
+            Total=lambda r: r["Qty"] * r["Leaves"]
+        )
+    )
 
-    blank_df = pd.DataFrame([{"Door Blank": k, "Qty": v} for k, v in blanks.items()])
+    blanks_df = blanks[["SKU", "Leaf Type", "Height", "Width", "Thickness", "Total"]]
+    blanks_df = blanks_df.rename(columns={"Total": "Qty"})
 
+    st.subheader("🚪 Door Blanks")
+    st.dataframe(blanks_df, use_container_width=True)
+
+    # ============================================================
     # Jambs
+    # ============================================================
+
+    calc_df["JambProfile"] = calc_df["JambType"].apply(lambda j: str(j).split()[0])
     jambs = (
         calc_df.groupby("JambProfile")["Total Frame (m)"]
         .sum()
@@ -228,43 +296,28 @@ def render_production_tab(og_df, settings):
         .rename(columns={"Total Frame (m)": "Meters"})
     )
 
+    st.subheader("📏 Jambs (Meters)")
+    st.dataframe(jambs, use_container_width=True)
+
+    # ============================================================
     # Stops
+    # ============================================================
+
     stop_df = pd.DataFrame([{
         "Stop Profile": "26A Stop",
         "Meters": round(calc_df["Total Stop (m)"].sum(), 2)
     }])
 
-    # Hinges
-    hinge_total = int(calc_df["Hinges"].sum())
-    hinge_df = pd.DataFrame([{
-        "Hinge": "Standard Hinges",
-        "Qty": hinge_total
-    }])
-
-    # Screws (6 per hinge)
-    screw_total = hinge_total * 6
-
-    st.subheader("🚪 Door Blanks")
-    st.dataframe(blank_df, use_container_width=True)
-
-    st.subheader("📏 Jambs (Meters)")
-    st.dataframe(jambs, use_container_width=True)
-
     st.subheader("🪵 Stops")
     st.dataframe(stop_df, use_container_width=True)
 
-    st.subheader("🔩 Hinges")
-    st.dataframe(hinge_df, use_container_width=True)
-
-    st.subheader("🧷 Screws")
-    st.write(f"Total screws needed: **{screw_total}**")
-
     st.divider()
 
-    # ==================================================================
-    # JAMB & STOP ORDER STRATEGY + CUT LISTS
-    # ==================================================================
-    st.markdown("## 📐 Jamb & Stop Ordering Strategy + Cut Lists")
+    # ============================================================
+    # STOCK STRATEGY + CUT LISTS
+    # ============================================================
+
+    st.markdown("## 📐 Stock Strategy + Cut Lists")
 
     colJ, colS = st.columns(2)
     jamb_strategy = colJ.selectbox("Jamb Stock Strategy", ["Mix (5.4 + 2.1)", "Only 5.4", "Only 2.1"])
@@ -273,69 +326,36 @@ def render_production_tab(og_df, settings):
     jamb_mode = jamb_strategy.replace("Mix (5.4 + 2.1)", "Mix")
     stop_mode = stop_strategy.replace("Mix (5.4 + 2.1)", "Mix")
 
-    # ---------------------------------------------------------------
-    # JAMB CUT LISTS
-    # ---------------------------------------------------------------
-    def build_cut_list(piece_lengths_mm, stock_lengths_mm):
-
-        pieces = sorted([int(p) for p in piece_lengths_mm if p > 0], reverse=True)
-        stock_lengths_mm = sorted(stock_lengths_mm)
-
-        stocks = []
-
-        for p in pieces:
-            placed = False
-            for stc in stocks:
-                if p <= (stc["stock_length"] - stc["used"]):
-                    stc["cuts"].append(p)
-                    stc["used"] += p
-                    placed = True
-                    break
-
-            if not placed:
-                chosen_len = next((L for L in stock_lengths_mm if p <= L), max(stock_lengths_mm))
-                stocks.append({
-                    "stock_length": chosen_len,
-                    "cuts": [p],
-                    "used": p
-                })
-
-        rows = []
-        for stc in stocks:
-            rows.append({
-                "Stock Length (mm)": stc["stock_length"],
-                "Cuts (mm)": " + ".join(str(c) for c in stc["cuts"]),
-                "Used (mm)": stc["used"],
-                "Waste (mm)": stc["stock_length"] - stc["used"]
-            })
-        return pd.DataFrame(rows)
-
-    st.markdown("### Jamb Length Breakdown (by Profile)")
-    jamb_summary2 = []
+    summary = []
     for _, r in jambs.iterrows():
         total_m = r["Meters"]
         qty54, qty21, waste = apply_stock_strategy(total_m, jamb_mode)
-        jamb_summary2.append({
-            "Jamb Profile": r["JambProfile"],
+        summary.append({
+            "Profile": r["JambProfile"],
             "Meters": total_m,
             "5.4m Qty": qty54,
             "2.1m Qty": qty21,
             "Waste (m)": waste
         })
 
-    jamb_summary_df = pd.DataFrame(jamb_summary2)
-    st.dataframe(jamb_summary_df, use_container_width=True)
+    summary_df = pd.DataFrame(summary)
+    st.dataframe(summary_df, use_container_width=True)
 
-    st.markdown("### Jamb Cut Lists (per Profile)")
+    st.divider()
+
+    # ============================================================
+    # BUILD CUT LISTS
+    # ============================================================
+
+    cutlists = {}
 
     for prof, grp in calc_df.groupby("JambProfile"):
         pieces = []
         for _, row in grp.iterrows():
-            q = int(row["Qty"])
             leg = int(row["Leg (mm)"])
             head = int(row["Head (mm)"])
-            pieces.extend([leg] * 2 * q)
-            pieces.extend([head] * q)
+            pieces.extend([leg] * 2)
+            pieces.append(head)
 
         stock_lengths = (
             [5400] if jamb_mode == "Only 5.4"
@@ -343,23 +363,14 @@ def render_production_tab(og_df, settings):
             else [2100, 5400]
         )
 
-        cut_df = build_cut_list(pieces, stock_lengths)
-
-        st.markdown(f"#### {prof}")
-        st.dataframe(cut_df, use_container_width=True)
-
-    # ---------------------------------------------------------------
-    # STOP CUT LIST
-    # ---------------------------------------------------------------
-    st.markdown("### Stop Cut List")
+        cutlists[f"Jamb — {prof}"] = build_cut_list(pieces, stock_lengths)
 
     stop_pieces = []
     for _, row in calc_df.iterrows():
-        q = int(row["Qty"])
         leg = int(row["Leg (mm)"])
         head = int(row["Head (mm)"])
-        stop_pieces.extend([leg] * 2 * q)
-        stop_pieces.extend([head] * q)
+        stop_pieces.extend([leg] * 2)
+        stop_pieces.append(head)
 
     stop_stock_lengths = (
         [5400] if stop_mode == "Only 5.4"
@@ -367,41 +378,36 @@ def render_production_tab(og_df, settings):
         else [2100, 5400]
     )
 
-    stop_cut_df = build_cut_list(stop_pieces, stop_stock_lengths)
-    st.dataframe(stop_cut_df, use_container_width=True)
+    cutlists["Stops"] = build_cut_list(stop_pieces, stop_stock_lengths)
+
+    st.subheader("Cut Lists Ready for PDF")
+
+    for title, df in cutlists.items():
+        st.write(f"### {title}")
+        st.dataframe(df, use_container_width=True)
 
     st.divider()
 
-    # ---------------------------------------------------------------
-    # EXPORT XLSX
-    # ---------------------------------------------------------------
-    st.markdown("## 📤 Export XLSX Measurement Template")
+    # ============================================================
+    # PDF EXPORT
+    # ============================================================
 
-    template = generate_production_template(
-        df_quote=og_df,
-        client=st.session_state.cust,
-        project=st.session_state.proj,
-        quote_number=settings.get("last_quote", "Q-XXXX")
-    )
-
-    st.download_button(
-        "Download XLSX Template",
-        data=template,
-        file_name="HDL_Measurement_Template.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-    st.divider()
-
-    # ---------------------------------------------------------------
-    # EXPORT PDF
-    # ---------------------------------------------------------------
     st.markdown("## 📄 Export Production PDF")
+
+    total_hinges = int(calc_df["Hinges"].sum())
+    total_screws = total_hinges * 6
 
     pdf = generate_production_pdf(
         data=calc_df,
-        jamb_summary=jamb_summary_df,
-        stop_summary=stop_df
+        jamb_summary=summary_df,
+        stop_summary=stop_df,
+        blanks_df=blanks_df,
+        hinge_qty=total_hinges,
+        screw_qty=total_screws,
+        cutlists=cutlists,
+        job_name=st.session_state.proj,
+        customer=st.session_state.cust,
+        qnum=settings.get("last_quote", "Q-XXXX")
     )
 
     st.download_button(
