@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 from core.pricing import leaf_price, frame_cost_and_pieces, stop_cost
-from core.sku import create_ssku
+from core.sku import create_sku
 from core.save_load import save_quote, suggest_next_q
 
 # NEW IMPORTS FOR DOOR ORDER FORM
