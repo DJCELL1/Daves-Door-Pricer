@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 from core.pricing import leaf_price, frame_cost_and_pieces, stop_cost
-from core.sku import create_sku
+from core.sku import create_ssku
 from core.save_load import save_quote, suggest_next_q
 
 # NEW IMPORTS FOR DOOR ORDER FORM
@@ -19,17 +19,11 @@ def render_estimator_tab(HINGE_DF):
     # CLIENT DETAILS
     # ---------------------------------------------------------
     with st.expander("Client Details", expanded=True):
-        st.session_state.cust = st.text_input(
-            "Customer Name",
-            value=st.session_state.cust
-        )
-        st.session_state.proj = st.text_input(
-            "Project Name",
-            value=st.session_state.proj
-        )
+        st.session_state.cust = st.text_input("Customer Name", value=st.session_state.cust)
+        st.session_state.proj = st.text_input("Project Name", value=st.session_state.proj)
 
     # ---------------------------------------------------------
-    # INPUTS FOR NEW DOOR LINE
+    # ADD DOOR LINE
     # ---------------------------------------------------------
     st.subheader("Add Door Line")
 
@@ -50,44 +44,34 @@ def render_estimator_tab(HINGE_DF):
         qty = st.number_input("Qty (Sets)", min_value=1, value=1)
 
     # ---------------------------------------------------------
-    # HINGE LOOKUP
+    # DESCRIPTION LOOKUP
     # ---------------------------------------------------------
-    hm = HINGE_DF[(HINGE_DF["Height"] == height) & (HINGE_DF["Width"] == width)]
-    if not hm.empty:
-        hinges_per_leaf = int(hm.iloc[0]["Hinges"])
-    else:
-        hinges_per_leaf = S["hinges_per_door"]
-
     prefix = S["prefix_map"][leaf_type]
     sku = create_sku(prefix, thickness, height, width, jamb, form)
 
-    desc_row = HINGE_DF[HINGE_DF["Code"] == sku]
-    desc = desc_row.iloc[0]["Description"] if not desc_row.empty else "DESCRIPTION NOT FOUND"
+    desc_lookup = HINGE_DF[HINGE_DF["Code"] == sku]
+    desc = desc_lookup.iloc[0]["Description"] if not desc_lookup.empty else "DESCRIPTION NOT FOUND"
 
     # ---------------------------------------------------------
-    # ADD LINE
+    # ADD LINE BUTTON
     # ---------------------------------------------------------
     if st.button("Add Line"):
 
+        # ---------------------------------------------------------
+        # LEAF COST LOOKUP (with POA handling)
+        # ---------------------------------------------------------
         poa_key = f"poa_{leaf_type}_{height}_{width}_{thickness}"
 
-        leaf_cost_val = leaf_price(
-            S["door_leaf_prices"][leaf_type],
-            height,
-            width,
-            thickness
-        )
+        leaf_cost_val = leaf_price(S["door_leaf_prices"][leaf_type], height, width, thickness)
 
         if leaf_cost_val is None and poa_key not in st.session_state:
-            st.warning(
-                f"❗ No price found for {leaf_type} {height}x{width} ({thickness}). Enter POA."
-            )
+            st.warning(f"❗ No price for {leaf_type} {height}x{width} {thickness}. Enter POA.")
             st.session_state[poa_key] = 0.0
             st.stop()
 
         if leaf_cost_val is None:
             user_poa = st.number_input(
-                f"Enter POA price for {leaf_type} {height}x{width} ({thickness})",
+                f"Enter POA price for {leaf_type} {height}x{width} {thickness}",
                 min_value=0.0,
                 key=poa_key
             )
@@ -96,9 +80,14 @@ def render_estimator_tab(HINGE_DF):
             leaf_cost_val = user_poa
             del st.session_state[poa_key]
 
-        # COST CALCS
+        # ---------------------------------------------------------
+        # COST CALC BLOCK
+        # ---------------------------------------------------------
+
+        # Leaves
         leaves_per_set = 1 if form == "Single" else 2
 
+        # Frame & stop cost
         frame_cost_val, frame_m, leg_mm, head_mm = frame_cost_and_pieces(
             height, width, jamb, form,
             S["frame_prices"], S["minimum_frame_charge"]
@@ -112,12 +101,20 @@ def render_estimator_tab(HINGE_DF):
 
         labour = S["labour_single"] if form == "Single" else S["labour_double"]
 
-        hinge_count = hinges_per_leaf * leaves_per_set
-        hinge_cost_val = hinge_count * S["hinge_price"]
+        # ---------------------------------------------------------
+        # UCE — HERE IS THE CLEAN, FINAL HINGE PATCH
+        # ---------------------------------------------------------
 
+        hinges_per_leaf = 3         # rule: all standard doors = 3 hinges per leaf
+        hinge_count = hinges_per_leaf * leaves_per_set
         screw_count = hinge_count * 6
+
+        hinge_cost_val = hinge_count * S["hinge_price"]
         screw_cost_val = screw_count * S["screw_cost"]
 
+        # ---------------------------------------------------------
+        # TOTAL COST CALC
+        # ---------------------------------------------------------
         unit_cost = (
             leaf_cost_val * leaves_per_set
             + frame_cost_val
@@ -129,10 +126,13 @@ def render_estimator_tab(HINGE_DF):
 
         total_cost = unit_cost * qty
 
+        # ---------------------------------------------------------
         # BUILD ROW
+        # ---------------------------------------------------------
         row = {
             "Customer": st.session_state.cust,
             "Project": st.session_state.proj,
+
             "SKU": sku,
             "Description": desc,
 
@@ -166,14 +166,13 @@ def render_estimator_tab(HINGE_DF):
         st.success("Door line added!")
 
     # ---------------------------------------------------------
-    # SUMMARY + COSTING
+    # SUMMARY + COSTING TABLE
     # ---------------------------------------------------------
     if st.session_state.rows:
 
         df = pd.DataFrame(st.session_state.rows)
 
         markup = st.number_input("Markup %", value=25)
-
         df["Sell"] = df["Total Cost"] * (1 + markup / 100)
         df["Margin %"] = ((df["Sell"] - df["Total Cost"]) / df["Sell"]) * 100
 
@@ -190,13 +189,13 @@ def render_estimator_tab(HINGE_DF):
         c4.metric("Total Sell", f"${total_sell:,.2f}")
         c5.metric("Margin %", f"{overall_margin:.1f}%")
 
-        st.subheader("Quote Summary (Clean View)")
+        st.subheader("Quote Summary (Clean)")
         st.dataframe(df[["SKU", "Description", "Qty", "Total Cost", "Sell", "Margin %"]], height=300)
 
-        with st.expander("Full Breakdown (Detailed Costs)", expanded=False):
+        with st.expander("Full Breakdown", expanded=False):
             st.dataframe(df, height=400)
 
-        # SAVE QUOTE
+        # SAVE
         qnum = st.text_input("Quote Number", value=suggest_next_q())
 
         if st.button("Save Quote 💾"):
@@ -214,7 +213,7 @@ def render_estimator_tab(HINGE_DF):
         st.download_button("Download CSV", df.to_csv(index=False), "quote.csv")
 
         # ---------------------------------------------------------
-        # NEW: DOOR ORDER FORM EXPORT
+        # DOOR ORDER FORM EXPORT
         # ---------------------------------------------------------
         st.subheader("📄 Door Order Form")
 
@@ -236,7 +235,7 @@ def render_estimator_tab(HINGE_DF):
             }
 
             filebytes = generate_order_form(
-                "Door Order template.xlsx",
+                "templates/door_order_template.xlsx",    # <-- adjust path
                 details,
                 contractor,
                 doors
