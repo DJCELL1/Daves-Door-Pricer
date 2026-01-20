@@ -2,6 +2,11 @@ import streamlit as st
 import pandas as pd
 
 # -------------------------------------
+# HARDWARE DIRECT THEME
+# -------------------------------------
+from hd_theme import apply_hd_theme, add_logo, metric_card, badge
+
+# -------------------------------------
 # CORE MODULES
 # -------------------------------------
 from core.settings import get_default_settings
@@ -29,8 +34,29 @@ from utils.loaders import load_hinge_sheet
 # =====================================
 # PAGE CONFIG
 # =====================================
-st.set_page_config(page_title="Dave’s Door Pricer", layout="wide")
-st.title("🚪 Dave's Door Intelligence Estimator Bro")
+st.set_page_config(
+    page_title="Dave's Door Pricer | Hardware Direct",
+    layout="wide",
+    page_icon="🚪"
+)
+
+# Apply Hardware Direct theme
+apply_hd_theme()
+
+# Add logo to sidebar
+try:
+    add_logo(logo_path="Logos-01.jpg", text="Hardware Direct", subtitle="Dave's Door Pricer")
+except Exception as e:
+    # Fallback to text-based logo if image fails
+    add_logo(text="Hardware Direct", subtitle="Dave's Door Pricer")
+
+# Main header
+st.markdown("""
+<div style='text-align: center; padding: 1rem 0 2rem 0;'>
+    <h1 style='color: #2B2B2B; margin-bottom: 0.5rem;'>🚪 Dave's Door Intelligence Estimator</h1>
+    <p style='color: #666; font-size: 1.1rem;'>Professional door quoting and production management</p>
+</div>
+""", unsafe_allow_html=True)
 
 
 # =====================================
